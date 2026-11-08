@@ -150,8 +150,25 @@ export default function App() {
       setStatus(await invoke<boolean>("server_status").catch(() => false));
       setLogs(await invoke<string[]>("get_logs").catch(() => []));
       const b = `http://${s.host}:${s.port}`;
+      let apiKeyForModels: string | null = null;
       try {
-        const m = await fetch(`${b}/v1/models`);
+        const kr = await fetch(`${b}/api-keys`, { headers: { Authorization: `Bearer ${s.adminToken}` } });
+        if (kr.ok) {
+          const kj = await kr.json();
+          const list = kj.api_keys || [];
+          setKeys(list);
+          if (!s.requireApiKeys) { /* open mode: no check */ }
+          else if (list.length) apiKeyForModels = list[0].key;
+        } else {
+          setKeys([]);
+        }
+      } catch { setKeys([]); }
+      try {
+        const headers: Record<string, string> = {};
+        if (apiKeyForModels) headers.Authorization = `Bearer ${apiKeyForModels}`;
+        else if (!s.requireApiKeys) headers.Authorization = `Bearer anything`;
+        // if require on and no key yet, leave header off -> server 401, UI shows empty correctly
+        const m = await fetch(`${b}/v1/models`, { headers });
         if (m.ok) { const j = await m.json(); setModels((j.data || []).map((d: any) => d.id)); } else setModels([]);
       } catch { setModels([]); }
       try {
