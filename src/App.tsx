@@ -104,6 +104,26 @@ export default function App() {
     setTimeout(() => setToast(""), 2200);
   }, []);
 
+  const [ctx, setCtx] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  useEffect(() => {
+    const onCtx = (e: MouseEvent) => {
+      const el = e.target as HTMLElement;
+      const copyEl = el.closest(".copyable, input, textarea, pre, code, .url, [data-copy]") as HTMLElement | null;
+      if (!copyEl) { e.preventDefault(); return; }
+      const sel = window.getSelection();
+      const text = sel && !sel.isCollapsed ? sel.toString() : (copyEl.textContent || "");
+      if (!text) { e.preventDefault(); return; }
+      e.preventDefault();
+      setCtx({ x: e.clientX, y: e.clientY, text });
+    };
+    const close = () => setCtx(null);
+    document.addEventListener("contextmenu", onCtx);
+    document.addEventListener("click", close);
+    document.addEventListener("scroll", close, true);
+    return () => { document.removeEventListener("contextmenu", onCtx); document.removeEventListener("click", close); document.removeEventListener("scroll", close, true); };
+  }, []);
+
   const applyTheme = useCallback((th: string) => {
     setTheme(th);
     const root = document.documentElement;
@@ -142,17 +162,6 @@ export default function App() {
       console.error(e);
     }
   }, [applyTheme, applyLang]);
-
-  useEffect(() => {
-    const onCtx = (e: MouseEvent) => {
-      const el = e.target as HTMLElement;
-      // allow copyable areas: base URL rows, code blocks, inputs/textareas
-      if (el.closest(".copyable, input, textarea, pre, code, .url, [data-copy]")) return;
-      e.preventDefault();
-    };
-    document.addEventListener("contextmenu", onCtx);
-    return () => document.removeEventListener("contextmenu", onCtx);
-  }, []);
 
   useEffect(() => {
     loadAll().then(() => {
@@ -482,6 +491,11 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
       </div>
 
       {toast && <div className="toast" role="status" aria-live="polite">{toast}</div>}
+      {ctx && (
+        <div className="ctxmenu" style={{ left: ctx.x, top: ctx.y }} role="menu">
+          <button className="ctxitem" onClick={() => { copyText(ctx.text, showToast, t.copied); setCtx(null); }} role="menuitem">{t.copy}</button>
+        </div>
+      )}
     </div>
   );
 }
