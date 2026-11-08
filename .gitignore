@@ -9,3 +9,7 @@ server/_challenge.js
 server/api_keys.db
 *.env
 !.env.example
+
+.tauri_keys.txt
+.tauri_keys.txt.pub
+
