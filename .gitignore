@@ -13,3 +13,4 @@ server/api_keys.db
 .tauri_keys.txt
 .tauri_keys.txt.pub
 
+api_keys.db
