@@ -20,7 +20,7 @@ import uvicorn
 from dotenv import load_dotenv
 import psycopg2
 
-from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt
+from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt, fetch_models
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -237,13 +237,23 @@ async def metrics():
 @app.get("/models")
 @app.get("/v1/models")
 async def list_models():
+    models = await asyncio.to_thread(lambda: fetch_models())
     return {
         "object": "list",
         "data": [
             {"id": m, "object": "model", "created": int(time.time()), "owned_by": "duck.ai"}
-            for m in SUPPORTED_MODELS
+            for m in models
         ],
     }
+
+# --- Image Edit / Vision (Phase B) ---
+# Duck.ai has no standalone /images/edits or vision upload endpoint on the jsdom chat path.
+# Text-to-image is via Luna GenerateImage (above). Image edit/vision needs the
+# duck.ai file-upload payload (multipart -> chat with image part) which is not yet
+# implemented; we return a clear 501 so clients know the limitation.
+@app.post("/v1/images/edits")
+async def images_edits(api_key: str = Depends(get_api_key)):
+    raise HTTPException(status_code=501, detail="Image edits require Vision upload (not yet implemented on jsdom path). Text-to-image via /v1/images/generations works (gpt-6-luna).")
 
 # --- Chat Completion Endpoint ---
 async def _ask_serialized(prompt: str, model: str):

@@ -103,6 +103,44 @@ DEFAULT_MODEL = "gpt-6-luna"
 # Duck.ai stateless single-turn ceiling is ~16k chars (upstream 429 above).
 MAX_PROMPT_CHARS = 15000
 
+# --- Dynamic model catalog (GET /duckchat/v1/models) with local cache ---
+_MODELS_CACHE: list[str] | None = None
+_MODELS_CACHE_TS = 0.0
+
+def fetch_models(force: bool = False) -> list[str]:
+    """Fetch live model ids from duck.ai catalog; fall back to SUPPORTED_MODELS."""
+    global _MODELS_CACHE, _MODELS_CACHE_TS
+    now = time.time()
+    if not force and _MODELS_CACHE and (now - _MODELS_CACHE_TS) < 300:
+        return _MODELS_CACHE
+    try:
+        r = requests.get(BASE + "/duckchat/v1/models", headers={"User-Agent": UA, "Accept": "application/json"}, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            ids: list[str] = []
+            # Catalog shape: list of {id, name, ...} or dict; be permissive
+            if isinstance(data, list):
+                for m in data:
+                    if isinstance(m, dict) and m.get("id"):
+                        ids.append(str(m["id"]))
+                    elif isinstance(m, dict) and m.get("model"):
+                        ids.append(str(m["model"]))
+                    elif isinstance(m, str):
+                        ids.append(m)
+            elif isinstance(data, dict) and isinstance(data.get("models"), list):
+                for m in data["models"]:
+                    if isinstance(m, dict) and m.get("id"):
+                        ids.append(str(m["id"]))
+            if ids:
+                _MODELS_CACHE = ids
+                _MODELS_CACHE_TS = now
+                return ids
+    except Exception:
+        pass
+    if _MODELS_CACHE:
+        return _MODELS_CACHE
+    return list(SUPPORTED_MODELS)
+
 
 def resolve_model(model: str | None) -> str:
     """Map a user/friendly model name to a real duck.ai model id."""

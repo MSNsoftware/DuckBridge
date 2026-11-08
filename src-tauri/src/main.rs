@@ -46,7 +46,7 @@ impl Default for AppSettings {
             auto_start_server: true,
             autostart: false,
             minimize_to_tray: true,
-            auto_update: false,
+            auto_update: true,
             theme: "system".into(),
             language: "en".into(),
             proxy_mode: "direct".into(),
@@ -300,6 +300,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
         .manage(Arc::new(Mutex::new(ServerState { child: None, logs: vec![] })))
         .invoke_handler(tauri::generate_handler![
