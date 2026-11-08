@@ -206,6 +206,8 @@ select.input { appearance: auto; }
 .modelgrid li { background: var(--surface2); border-radius: 9px; padding: 8px 10px; overflow: hidden; }
 .modelgrid code { white-space: nowrap; }
 .settings { display: grid; gap: 16px; }
+.notice { border: 1px solid var(--border); background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; display: grid; gap: 8px; min-width: 0; }
+.notice code { display: block; background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; max-height: 120px; overflow: auto; white-space: pre-wrap; word-break: break-all; direction: ltr; text-align: left; unicode-bidi: plaintext; font-size: 11px; line-height: 1.6; }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 9999px; font-size: 13px; box-shadow: var(--shadow-md); z-index: 50; max-width: min(90vw, 560px); text-align: center; }
 .ctxmenu { position: fixed; z-index: 60; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md); padding: 4px; min-width: 140px; }
 .ctxitem { display: block; width: 100%; text-align: start; background: transparent; border: 0; padding: 8px 10px; font-size: 13px; color: var(--text); cursor: pointer; border-radius: 6px; font-family: inherit; }
