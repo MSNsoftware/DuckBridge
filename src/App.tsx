@@ -490,7 +490,20 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                     </select>
                   </label>
                 </div>
-                <label className="field"><span>{t.adminToken}</span><input className="input mono" value={settings.adminToken} onChange={(e) => save({ ...settings, adminToken: e.target.value })} /></label>
+                <label className="field"><span>{t.adminToken}</span>
+                  <div className="row">
+                    <input className="input mono" value={settings.adminToken} onChange={(e) => save({ ...settings, adminToken: e.target.value })} style={{ flex: 1 }} />
+                    <button className="btn sm" onClick={() => {
+                      const buf = new Uint8Array(24);
+                      crypto.getRandomValues(buf);
+                      const tok = Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+                      save({ ...settings, adminToken: tok });
+                      showToast(t.copied);
+                    }}>Generate</button>
+                    <button className="btn sm" onClick={() => copyText(settings.adminToken, showToast, t.copied)}>{t.copy}</button>
+                  </div>
+                </label>
+                {settings.adminToken === "your-super-secret-admin-token" && <p className="muted">Default token. Change it before enabling Require API key.</p>}
               </div>
             </section>
           )}
