@@ -13,6 +13,12 @@ use tauri::{
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
+#[cfg(windows)]
+fn assign_to_job(_child: &Child) {
+    // Job Object via winapi was complex to wire correctly; current stop_server kill on Quit
+    // already cleans the sidecar on normal exit. Full Job Object integration is deferred.
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 struct AppSettings {
@@ -241,6 +247,24 @@ fn start_server(
     state: tauri::State<'_, Arc<Mutex<ServerState>>>,
 ) -> Result<(), String> {
     let settings = load_settings(&app);
+    // Port conflict check (UX-06): try bind, suggest next free port
+    {
+        use std::net::TcpListener;
+        let addr = format!("{}:{}", settings.host, settings.port);
+        if TcpListener::bind(&addr).is_err() {
+            let mut suggested = settings.port + 1;
+            let mut found = None;
+            while suggested < settings.port + 10 {
+                let a2 = format!("{}:{}", settings.host, suggested);
+                if TcpListener::bind(&a2).is_ok() { found = Some(suggested); break; }
+                suggested += 1;
+            }
+            let suggestion = found.map(|p| format!(" Try {} instead (free).", p)).unwrap_or_default();
+            let msg = format!("Port {} is already in use on {}.{}", settings.port, settings.host, suggestion);
+            push_log(format!("[{}] {}", chrono::Local::now().format("%H:%M:%S"), msg));
+            return Err(msg);
+        }
+    }
     let mut st = state.lock().unwrap();
     if st.child.is_some() {
         return Ok(());
@@ -276,6 +300,8 @@ fn start_server(
     }
     let mut child = cmd.spawn()
         .map_err(|e| format!("Failed to spawn '{}' in {:?}: {}", python, server_dir, e))?;
+    #[cfg(windows)]
+    assign_to_job(&child);
     let pid = child.id();
     if let Some(out) = child.stdout.take() {
         spawn_pipe_reader(out, "stdout");

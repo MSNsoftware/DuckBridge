@@ -123,10 +123,17 @@ export default function App() {
       setCtx({ x: e.clientX, y: e.clientY, text });
     };
     const close = () => setCtx(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F12" || (e.ctrlKey && e.shiftKey && ["I", "J", "C"].includes(e.key.toUpperCase())) || (e.ctrlKey && e.key.toUpperCase() === "U")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
     document.addEventListener("contextmenu", onCtx);
     document.addEventListener("click", close);
     document.addEventListener("scroll", close, true);
-    return () => { document.removeEventListener("contextmenu", onCtx); document.removeEventListener("click", close); document.removeEventListener("scroll", close, true); };
+    document.addEventListener("keydown", onKey, true);
+    return () => { document.removeEventListener("contextmenu", onCtx); document.removeEventListener("click", close); document.removeEventListener("scroll", close, true); document.removeEventListener("keydown", onKey, true); };
   }, []);
 
   const applyTheme = useCallback((th: string) => {
@@ -384,7 +391,7 @@ export default function App() {
                   <div className="stat"><span className="stat-label">{t.running}</span><strong>{status ? "●" : "○"}</strong><span className="muted">{status ? settings.port : "—"}</span></div>
                   <div className="stat"><span className="stat-label">{t.requests}</span><strong>{stats.total}</strong><span className="muted">{stats.success} {t.ok}</span></div>
                   <div className="stat"><span className="stat-label">{t.errors}</span><strong>{stats.errors}</strong><span className="muted">{metrics?.upstream_errors ?? 0} {t.upstream}</span></div>
-                  <div className="stat"><span className="stat-label">{t.latency}</span><strong>{stats.avg}s</strong><span className="muted">{t.avg}</span></div>
+                  <div className="stat"><span className="stat-label">{t.latency}</span><strong>{stats.avg.toFixed(2)}s</strong><span className="muted">{t.avg}</span></div>
                 </div>
                 {metrics?.last_error && <div className="notice">{t.lastError}: <code>{metrics.last_error}</code></div>}
               </div>
