@@ -236,7 +236,7 @@ async def metrics():
 
 @app.get("/models")
 @app.get("/v1/models")
-async def list_models():
+async def list_models(api_key: str = Depends(get_api_key)):
     models = await asyncio.to_thread(lambda: fetch_models())
     return {
         "object": "list",
