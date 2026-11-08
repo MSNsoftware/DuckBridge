@@ -20,7 +20,7 @@ import uvicorn
 from dotenv import load_dotenv
 import psycopg2
 
-from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt, fetch_models
+from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt, fetch_models, fetch_models_full
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -67,6 +67,10 @@ if shutil.which("node") is None:
     logger.warning("node is not on PATH — duck.ai challenge solver needs Node.js >= 18")
 
 # --- Database Connection Setup ---
+def _hash_key(k: str) -> str:
+    import hashlib
+    return hashlib.sha256(k.encode()).hexdigest()
+
 def get_db_connection():
     if DATABASE_URL:
         logger.info("Connecting to PostgreSQL.")
@@ -131,10 +135,11 @@ async def get_api_key(authorization: Optional[str] = Header(None)):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
+        token_hash = _hash_key(token)
         if DATABASE_URL:
-            cursor.execute("SELECT id FROM openai_api_keys WHERE key = %s", (token,))
+            cursor.execute("SELECT id FROM openai_api_keys WHERE key = %s OR key = %s", (token_hash, token))
         else:
-            cursor.execute("SELECT id FROM openai_api_keys WHERE key = ?", (token,))
+            cursor.execute("SELECT id FROM openai_api_keys WHERE key = ? OR key = ?", (token_hash, token))
         result = cursor.fetchone()
     finally:
         conn.close()
@@ -167,10 +172,11 @@ app = FastAPI(title="duckduckgo-ai-openai-api")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://tauri.localhost", "http://localhost:*", "http://127.0.0.1:*", "https://tauri.localhost"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 @app.middleware("http")
@@ -237,11 +243,12 @@ async def metrics():
 @app.get("/models")
 @app.get("/v1/models")
 async def list_models(api_key: str = Depends(get_api_key)):
-    models = await asyncio.to_thread(lambda: fetch_models())
+    full = await asyncio.to_thread(lambda: fetch_models_full())
+    models = full["ids"]
     return {
         "object": "list",
         "data": [
-            {"id": m, "object": "model", "created": int(time.time()), "owned_by": "duck.ai"}
+            {"id": m, "object": "model", "created": int(time.time()), "owned_by": "duck.ai", "free": next((x["free"] for x in full["full"] if x["id"] == m), True), "tiers": next((x["tiers"] for x in full["full"] if x["id"] == m), [])}
             for m in models
         ],
     }
@@ -438,14 +445,15 @@ async def create_api_key_endpoint(api_key_create: ApiKeyCreate):
         return ""
     import secrets
     new_key = secrets.token_hex(16)
+    stored = _hash_key(new_key)
     description = api_key_create.description
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         if DATABASE_URL:
-            cursor.execute("INSERT INTO openai_api_keys (key, description) VALUES (%s, %s)", (new_key, description))
+            cursor.execute("INSERT INTO openai_api_keys (key, description) VALUES (%s, %s)", (stored, description))
         else:
-            cursor.execute("INSERT INTO openai_api_keys (key, description) VALUES (?, ?)", (new_key, description))
+            cursor.execute("INSERT INTO openai_api_keys (key, description) VALUES (?, ?)", (stored, description))
         conn.commit()
         if DATABASE_URL:
             cursor.execute("SELECT currval(pg_get_serial_sequence('openai_api_keys','id'))")
@@ -467,9 +475,9 @@ async def delete_api_key(key: str):
     try:
         cursor = conn.cursor()
         if DATABASE_URL:
-            cursor.execute("DELETE FROM openai_api_keys WHERE key = %s", (key,))
+            cursor.execute("DELETE FROM openai_api_keys WHERE key = %s OR key = %s", (_hash_key(key), key))
         else:
-            cursor.execute("DELETE FROM openai_api_keys WHERE key = ?", (key,))
+            cursor.execute("DELETE FROM openai_api_keys WHERE key = ? OR key = ?", (_hash_key(key), key))
         conn.commit()
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="API Key not found")

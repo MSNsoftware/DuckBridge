@@ -89,7 +89,13 @@ fn save_settings(app: &AppHandle, s: &AppSettings) {
         let _ = fs::create_dir_all(parent);
     }
     if let Ok(txt) = serde_json::to_string_pretty(s) {
-        let _ = fs::write(p, txt);
+        let _ = fs::write(&p, txt);
+        // best-effort: restrict to owner-only on Unix (600)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o600));
+        }
     }
 }
 

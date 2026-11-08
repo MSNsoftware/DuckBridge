@@ -106,40 +106,50 @@ MAX_PROMPT_CHARS = 15000
 # --- Dynamic model catalog (GET /duckchat/v1/models) with local cache ---
 _MODELS_CACHE: list[str] | None = None
 _MODELS_CACHE_TS = 0.0
+_MODELS_FULL_CACHE: list[dict] | None = None
+
+def _parse_catalog(data) -> tuple[list[str], list[dict]]:
+    ids: list[str] = []
+    full: list[dict] = []
+    models = data if isinstance(data, list) else (data.get("models") if isinstance(data, dict) else [])
+    if not isinstance(models, list):
+        return ids, full
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        mid = m.get("id") or m.get("model")
+        if not mid:
+            continue
+        mid = str(mid)
+        ids.append(mid)
+        free = bool(m.get("entityHasAccess")) and ("free" in (m.get("accessTier") or []) or m.get("entityHasAccess"))
+        tiers = m.get("accessTier") or []
+        full.append({"id": mid, "name": m.get("name") or mid, "free": free, "tiers": tiers, "provider": m.get("provider") or ""})
+    return ids, full
 
 def fetch_models(force: bool = False) -> list[str]:
+    return fetch_models_full(force=force)["ids"]
+
+def fetch_models_full(force: bool = False) -> dict:
     """Fetch live model ids from duck.ai catalog; fall back to SUPPORTED_MODELS."""
-    global _MODELS_CACHE, _MODELS_CACHE_TS
+    global _MODELS_CACHE, _MODELS_CACHE_TS, _MODELS_FULL_CACHE
     now = time.time()
     if not force and _MODELS_CACHE and (now - _MODELS_CACHE_TS) < 300:
-        return _MODELS_CACHE
+        return {"ids": _MODELS_CACHE, "full": _MODELS_FULL_CACHE or [{"id": i, "name": i, "free": i in SUPPORTED_MODELS, "tiers": [], "provider": ""} for i in _MODELS_CACHE]}
     try:
         r = requests.get(BASE + "/duckchat/v1/models", headers={"User-Agent": UA, "Accept": "application/json"}, timeout=10)
         if r.status_code == 200:
-            data = r.json()
-            ids: list[str] = []
-            # Catalog shape: list of {id, name, ...} or dict; be permissive
-            if isinstance(data, list):
-                for m in data:
-                    if isinstance(m, dict) and m.get("id"):
-                        ids.append(str(m["id"]))
-                    elif isinstance(m, dict) and m.get("model"):
-                        ids.append(str(m["model"]))
-                    elif isinstance(m, str):
-                        ids.append(m)
-            elif isinstance(data, dict) and isinstance(data.get("models"), list):
-                for m in data["models"]:
-                    if isinstance(m, dict) and m.get("id"):
-                        ids.append(str(m["id"]))
+            ids, full = _parse_catalog(r.json())
             if ids:
                 _MODELS_CACHE = ids
+                _MODELS_FULL_CACHE = full
                 _MODELS_CACHE_TS = now
-                return ids
+                return {"ids": ids, "full": full}
     except Exception:
         pass
     if _MODELS_CACHE:
-        return _MODELS_CACHE
-    return list(SUPPORTED_MODELS)
+        return {"ids": _MODELS_CACHE, "full": _MODELS_FULL_CACHE or []}
+    return {"ids": list(SUPPORTED_MODELS), "full": [{"id": i, "name": i, "free": True, "tiers": ["free"], "provider": ""} for i in SUPPORTED_MODELS]}
 
 
 def resolve_model(model: str | None) -> str:

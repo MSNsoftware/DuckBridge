@@ -87,7 +87,7 @@ export default function App() {
   });
   const [status, setStatus] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
-  const [models, setModels] = useState<string[]>([]);
+  const [models, setModels] = useState<{ id: string; free: boolean; name?: string }[]>([]);
   const [keys, setKeys] = useState<any[]>([]);
   const [health, setHealth] = useState<any>(null);
   const [metrics, setMetrics] = useState<any>(null);
@@ -171,7 +171,7 @@ export default function App() {
         else if (!s.requireApiKeys) headers.Authorization = `Bearer anything`;
         // if require on and no key yet, leave header off -> server 401, UI shows empty correctly
         const m = await fetch(`${b}/v1/models`, { headers });
-        if (m.ok) { const j = await m.json(); setModels((j.data || []).map((d: any) => d.id)); } else setModels([]);
+        if (m.ok) { const j = await m.json(); setModels((j.data || []).map((d: any) => ({ id: d.id, free: d.free !== false, name: d.name }))); } else setModels([]);
       } catch { setModels([]); }
       try {
         const h = await fetch(`${b}/health`);
@@ -448,8 +448,27 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
 
           {tab === "models" && (
             <section className="card stack">
-              <div className="row between"><h2>{t.models}</h2><button className="btn" onClick={loadAll}>{t.refresh}</button></div>
-              {models.length === 0 ? <p className="muted">{t.noModels}</p> : <ul className="modelgrid">{models.map((m) => <li key={m}><code className="mono">{m}</code></li>)}</ul>}
+              <div className="row between">
+                <h2>{t.models}</h2>
+                <div className="row">
+                  <span className="legend"><span className="dot on" /> {lang === "fa" ? "رایگان" : "Free"}</span>
+                  <span className="legend"><span className="dot off" /> {lang === "fa" ? "پولی (Plus/PRO)" : "Paid (Plus/PRO)"}</span>
+                  <button className="btn" onClick={loadAll}>{t.refresh}</button>
+                </div>
+              </div>
+              {models.length === 0 ? <p className="muted">{t.noModels}</p> : (
+                <ul className="modelgrid">
+                  {models.map((m) => (
+                    <li key={m.id} className={`modelrow ${m.free ? "" : "paid"}`}>
+                      <span className={`dot ${m.free ? "on" : "off"}`} aria-hidden="true" />
+                      <code className="mono" dir="ltr">{m.id}</code>
+                      {!m.free && <span className="badge">{lang === "fa" ? "پولی" : "Paid"}</span>}
+                      <span className="spacer" />
+                      {m.free ? <button className="btn sm" onClick={() => copyText(m.id, showToast, t.copied)}>{t.copy}</button> : <span className="muted">{lang === "fa" ? "در دسترس نیست" : "Unavailable"}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
 
