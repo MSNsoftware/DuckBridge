@@ -144,6 +144,17 @@ export default function App() {
   }, [applyTheme, applyLang]);
 
   useEffect(() => {
+    const onCtx = (e: MouseEvent) => {
+      const el = e.target as HTMLElement;
+      // allow copyable areas: base URL rows, code blocks, inputs/textareas
+      if (el.closest(".copyable, input, textarea, pre, code, .url, [data-copy]")) return;
+      e.preventDefault();
+    };
+    document.addEventListener("contextmenu", onCtx);
+    return () => document.removeEventListener("contextmenu", onCtx);
+  }, []);
+
+  useEffect(() => {
     loadAll().then(() => {
       invoke<Settings>("get_settings").then((s) => {
         if (s.autoStartServer) invoke("start_server").then(() => setTimeout(loadAll, 2500)).catch(() => {});
@@ -318,11 +329,11 @@ export default function App() {
               <div className="card hero">
                 <label className="label">{t.baseUrl}</label>
                 <p className="muted">{t.ready}</p>
-                <div className="urlrow">
+                <div className="urlrow copyable" data-copy>
                   <code className="url">{v1Url}</code>
                   <button className="btn primary" onClick={() => copyText(v1Url, () => showToast(t.copiedUrl), t.copied)}>{t.copy}</button>
                 </div>
-                <div className="urlrow secondary">
+                <div className="urlrow secondary copyable" data-copy>
                   <code className="url">{baseUrl}</code>
                   <button className="btn" onClick={() => copyText(baseUrl, () => showToast(t.copiedUrl), t.copied)}>{t.copy}</button>
                 </div>
