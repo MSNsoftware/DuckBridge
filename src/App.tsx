@@ -223,6 +223,18 @@ export default function App() {
 
   const dirClass = lang === "fa" ? " rtl" : "";
 
+  const Icon = ({ d }: { d: string }) => (
+    <svg className="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+  );
+  const icons: Record<Tab, string> = {
+    dashboard: "M4 4h16v4H4zM4 10h16v2H4zM4 14h10v6H4z",
+    apitester: "M8 9l4 3-4 3M12 21h8",
+    keys: "M21 2l-2 2m-7.61 7.61A5.5 5.5 0 1 1 5.5 5.5L21 18l-4 4-2-2",
+    models: "M12 2l8 4.5v9L12 20l-8-4.5v-9L12 2zM12 11L4 6.5M12 11l8-4.5M12 11v9",
+    logs: "M4 6h16M4 12h16M4 18h10",
+    settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z",
+  };
+
   return (
     <div className={`shell${dirClass}`}>
       <aside className="sidebar">
@@ -234,12 +246,13 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="nav">
+        <nav className="nav" aria-label="Primary">
           {(([
-            ["dashboard", t.dashboard, "Overview"], ["apitester", t.apitester, "Console"], ["keys", t.keys, "Keys"],
-            ["models", t.models, "Models"], ["logs", t.logs, "Logs"], ["settings", t.settings, "Settings"],
-          ]) as [Tab, string, string][]).map(([k, label]) => (
-            <button key={k} className={`navbtn ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>
+            ["dashboard", t.dashboard], ["apitester", t.apitester], ["keys", t.keys],
+            ["models", t.models], ["logs", t.logs], ["settings", t.settings],
+          ]) as [Tab, string][]).map(([k, label]) => (
+            <button key={k} className={`navbtn ${tab === k ? "active" : ""}`} onClick={() => setTab(k)} aria-current={tab === k ? "page" : undefined}>
+              <Icon d={icons[k]} />
               <span className="navlabel">{label}</span>
             </button>
           ))}
