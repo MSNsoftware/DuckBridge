@@ -1,0 +1,10 @@
+{
+  "name": "duckduckgo-ai-openai-api",
+  "version": "2.0.0",
+  "description": "Duck.ai challenge solver runtime (jsdom) for duckai_backend.py",
+  "license": "0BSD",
+  "private": true,
+  "dependencies": {
+    "jsdom": "^30.1.3"
+  }
+}

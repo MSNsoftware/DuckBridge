@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DuckDuckGo AI OpenAI API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css">
+    <script>
+        let API_URL = "http://127.0.0.1:8765";
+
+        function showSpinner(outputId) {
+            document.getElementById(outputId).innerHTML = '<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto"></div>';
+        }
+
+        async function create_API_KEY(ADMIN_API_KEY) {
+            const input = { ADMIN_API_KEY };
+            showSpinner("output_create");
+            const response = await fetch(`${API_URL}/api-keys`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${ADMIN_API_KEY}`
+                },
+                body: JSON.stringify({ description: "Test key created via UI" })
+            });
+            const output = await response.json();
+            document.getElementById("output_create").innerText = JSON.stringify({ input, output }, null, 2);
+        }
+      
+        async function chatRequest(API_KEY, prompt, model) {
+            const input = { API_KEY, prompt, model };
+            showSpinner("output_chat");
+            const response = await fetch(`${API_URL}/chat/completions`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({ messages: [{ "role": "user", "content": prompt }], model:model })
+            });
+            const output = await response.json();
+            document.getElementById("output_chat").innerText = JSON.stringify({ input, output }, null, 2);
+        }
+
+        async function deleteRequest(API_KEY, ADMIN_API_KEY) {
+            const input = { API_KEY, ADMIN_API_KEY };
+            showSpinner("output_delete");
+            const response = await fetch(`${API_URL}/api-keys/${API_KEY}`, {
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${ADMIN_API_KEY}` }
+            });
+            const output = await response.json();
+            document.getElementById("output_delete").innerText = JSON.stringify({ input, output }, null, 2);
+        }
+    </script>
+</head>
+<body class="bg-gray-100">
+    <header class="bg-blue-600 text-white text-center p-6">
+        <h1 class="text-4xl font-bold">DuckDuckGo AI OpenAI API</h1>
+        <p class="text-lg mt-2">Fast, Free & Powerful AI Chat Completions</p>
+    </header>
+    
+    <main class="max-w-4xl mx-auto p-6">
+        <section class="bg-white p-6 shadow-lg rounded-lg">
+            <h2 class="text-2xl font-semibold mb-4">🚀 About the API</h2>
+            <p>The API mimics OpenAI's functionality while leveraging DuckDuckGo's AI models to deliver chat completions with streaming and non-streaming responses.</p>
+        </section>
+        
+        <section class="bg-white p-6 shadow-lg rounded-lg mt-6">
+            <h2 class="text-2xl font-semibold mb-4">✨ Features</h2>
+            <ul class="list-disc pl-6">
+                <li>🔑 API Key Management</li>
+                <li>📡 Streaming & Non-Streaming Responses</li>
+                <li>💾 Supports SQLite & PostgreSQL</li>
+                <li>🚫 Can Run Without a Database</li>
+            </ul>
+        </section>
+
+        <section class="bg-white p-6 shadow-lg rounded-lg mt-6">
+            <h2 class="text-2xl font-semibold mb-4">🔗 Try the API</h2>
+            <label for="api_url">API URL (local: http://127.0.0.1:8765):</label>
+            <input id="api_url" type="text" placeholder="http://127.0.0.1:8765" value="http://127.0.0.1:8765" class="border p-2 mt-2 w-full" oninput="API_URL = this.value" />
+            <pre class="bg-gray-200 p-4 rounded-lg mt-4">Current API URL: <span id="current_api_url">http://127.0.0.1:8765</span></pre>
+        </section>
+
+        <section class="bg-white p-6 shadow-lg rounded-lg mt-6">
+            <h2 class="text-2xl font-semibold mb-4">🛠 API Testing</h2>
+            <label for="admin_api_key">Enter your Admin API Key (default: "your-super-secret-admin-token"):</label>
+            <input id="admin_api_key" type="text" placeholder="your-super-secret-admin-token" class="border p-2 mt-2 w-full" />
+            <button onclick="create_API_KEY(document.getElementById('admin_api_key').value)" class="bg-blue-500 text-white p-2 mt-2 w-full">Create API Key</button>
+            <pre id="output_create" class="bg-gray-200 p-4 rounded-lg mt-4"></pre>
+            
+            <label for="api_key">API Key:</label>
+            <input id="api_key" type="text" placeholder="API Key" class="border p-2 mt-2 w-full" />
+            <label for="prompt">Chat Prompt:</label>
+            <input id="prompt" type="text" placeholder="Chat Prompt" class="border p-2 mt-2 w-full" />
+            <label for="model">Model:</label>
+            <select id="model" class="border p-2 mt-2 w-full">
+                <option value="gpt-6-luna">gpt-6-luna (Best for everyday use)</option>
+                <option value="gpt-5.4-mini">gpt-5.4-mini (Solid but hits limits sooner)</option>
+                <option value="gpt-5.4-nano">gpt-5.4-nano</option>
+                <option value="claude-haiku-5-5">claude-haiku-5-5 (Solid but hits limits sooner)</option>
+                <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+                <option value="mistral-small-2603">mistral-small-2603 (Mistral Small 4)</option>
+                <option value="tinfoil/gpt-oss-120b">tinfoil/gpt-oss-120b (gpt-oss 120B)</option>
+                <option value="tinfoil/gemma4-31b">tinfoil/gemma4-31b (Gemma 4 31B)</option>
+                <option value="gpt-4o-mini">gpt-4o-mini (legacy alias -> gpt-5.4-mini)</option>
+                <option value="o3-mini">o3-mini (legacy alias -> gpt-6-luna)</option>
+                <option value="claude-3-haiku">claude-3-haiku (legacy alias -> claude-haiku-4-5)</option>
+            </select>
+            <button onclick="chatRequest(document.getElementById('api_key').value, document.getElementById('prompt').value, document.getElementById('model').value)" class="bg-green-500 text-white p-2 mt-2 w-full">Send Chat Request</button>
+            <pre id="output_chat" class="bg-gray-200 p-4 rounded-lg mt-4"></pre>
+            
+            <button onclick="deleteRequest(document.getElementById('api_key').value, document.getElementById('admin_api_key').value)" class="bg-red-500 text-white p-2 mt-2 w-full">Delete API Key</button>
+            <pre id="output_delete" class="bg-gray-200 p-4 rounded-lg mt-4"></pre>
+        </section>
+    </main>
+
+    <footer class="text-center p-6 bg-gray-200 mt-6">
+        <p>&copy; 2025 DuckDuckGo AI OpenAI API. All Rights Reserved.</p>
+    </footer>
+</body>
+</html>

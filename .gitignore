@@ -1,0 +1,11 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+server/__pycache__/
+server/.venv/
+server/node_modules/
+server/_challenge.js
+server/api_keys.db
+*.env
+!.env.example

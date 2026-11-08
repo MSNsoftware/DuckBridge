@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "DuckBridge",
+  "version": "0.1.0",
+  "identifier": "com.duckbridge.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "DuckBridge - API Gateway",
+        "width": 1100,
+        "height": 750,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "devtools": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["main-capability"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "appimage", "deb"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns", "icons/icon.ico"],
+    "category": "DeveloperTool",
+    "shortDescription": "Local Duck.ai API gateway",
+    "longDescription": "DuckBridge - local OpenAI-compatible gateway for Duck.ai with tray, settings and sidecar server.",
+    "resources": ["../server/**/*"],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "linux": {
+      "appimage": { "bundleMediaFramework": false },
+      "deb": { "depends": [] }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "endpoints": ["https://github.com/YOUR_REPO/duckbridge/releases/latest/download/latest.json"],
+      "dialog": false
+    }
+  }
+}
