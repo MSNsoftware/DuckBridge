@@ -140,10 +140,6 @@ def fetch_models_full(force: bool = False) -> dict:
         r = requests.get(BASE + "/duckchat/v1/models", headers={"User-Agent": UA, "Accept": "application/json"}, timeout=10)
         if r.status_code == 200:
             ids, full = _parse_catalog(r.json())
-            # catalog says free for both tinfoil models, but live test shows gpt-oss 400s on jsdom path (gemma works)
-            for m in full:
-                if m["id"] == "tinfoil/gpt-oss-120b":
-                    m["free"] = False
             if ids:
                 _MODELS_CACHE = ids
                 _MODELS_FULL_CACHE = full
@@ -153,7 +149,7 @@ def fetch_models_full(force: bool = False) -> dict:
         pass
     if _MODELS_CACHE:
         return {"ids": _MODELS_CACHE, "full": _MODELS_FULL_CACHE or []}
-    return {"ids": list(SUPPORTED_MODELS), "full": [{"id": i, "name": i, "free": i != "tinfoil/gpt-oss-120b", "tiers": ["free"] if i != "tinfoil/gpt-oss-120b" else [], "provider": ""} for i in SUPPORTED_MODELS]}
+    return {"ids": list(SUPPORTED_MODELS), "full": [{"id": i, "name": i, "free": True, "tiers": ["free"], "provider": ""} for i in SUPPORTED_MODELS]}
 
 
 def resolve_model(model: str | None) -> str:
