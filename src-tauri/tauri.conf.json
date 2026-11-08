@@ -44,12 +44,5 @@
       "appimage": { "bundleMediaFramework": false },
       "deb": { "depends": [] }
     }
-  },
-  "plugins": {
-    "updater": {
-      "active": false,
-      "endpoints": ["https://github.com/YOUR_REPO/duckbridge/releases/latest/download/latest.json"],
-      "dialog": false
-    }
   }
 }

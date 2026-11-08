@@ -186,7 +186,6 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
         .manage(Arc::new(Mutex::new(ServerState { child: None, logs: vec![] })))
         .invoke_handler(tauri::generate_handler![
