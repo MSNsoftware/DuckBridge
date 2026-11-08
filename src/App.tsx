@@ -26,14 +26,16 @@ const T = {
     copy: "Copy", copied: "Copied", health: "Health", metrics: "Metrics",
     server: "Server", proxy: "Proxy", appearance: "Appearance", system: "System",
     host: "Host", port: "Port", adminToken: "Admin token",
-    autoStart: "Auto-start server", autostart: "Autostart at login", minimize: "Minimize to tray on close",
+    autoStart: "Auto-start server", autostart: "Autostart at login", minimize: "Minimize to tray on close", autoUpdate: "Auto-update",
     direct: "Direct — no proxy", systemProxy: "System proxy", manual: "Manual list",
     add: "Add proxy", test: "Test", delete: "Delete", enable: "Enable",
     theme: "Theme", language: "Language", light: "Light", dark: "Dark", systemTheme: "System",
     create: "Create key", refresh: "Refresh", clear: "Clear", send: "Send",
     endpoint: "Endpoint", body: "Body (JSON)", response: "Response",
     lastError: "Last error", noModels: "No models loaded. Start the server.",
-    copiedUrl: "Base URL copied.",
+    copiedUrl: "Base URL copied.", requests: "Requests", errors: "Errors", latency: "Latency", avg: "avg", ok: "ok", upstream: "upstream",
+    noKeys: "No keys. Set ADMIN_TOKEN in Settings and start the server with IGNPRE_API_KEYS=False, or leave it True for open access.",
+    loading: "Loading...", proxyAdded: "Proxy added", saveFailed: "Save failed", startFailed: "Start failed", mode: "Mode",
   },
   fa: {
     dashboard: "داشبورد", apitester: "تست API", keys: "کلیدها", models: "مدل‌ها", logs: "گزارش‌ها", settings: "تنظیمات",
@@ -42,21 +44,23 @@ const T = {
     copy: "کپی", copied: "کپی شد", health: "وضعیت", metrics: "آمار",
     server: "سرور", proxy: "پروکسی", appearance: "ظاهر", system: "سیستم",
     host: "هاست", port: "پورت", adminToken: "توکن ادمین",
-    autoStart: "شروع خودکار سرور", autostart: "اجرا با ورود به سیستم", minimize: "با بستن پنجره به ترای برود",
+    autoStart: "شروع خودکار سرور", autostart: "اجرا با ورود به سیستم", minimize: "با بستن پنجره به ترای برود", autoUpdate: "به‌روزرسانی خودکار",
     direct: "مستقیم — بدون پروکسی", systemProxy: "پروکسی سیستم", manual: "لیست دستی",
     add: "افزودن پروکسی", test: "تست", delete: "حذف", enable: "فعال",
     theme: "پوسته", language: "زبان", light: "روشن", dark: "تیره", systemTheme: "سیستم",
     create: "ساخت کلید", refresh: "به‌روزرسانی", clear: "پاک کردن", send: "ارسال",
     endpoint: "نقطه پایانی", body: "بدنه (JSON)", response: "پاسخ",
     lastError: "آخرین خطا", noModels: "مدلی بارگذاری نشده. سرور را شروع کنید.",
-    copiedUrl: "آدرس پایه کپی شد.",
+    copiedUrl: "آدرس پایه کپی شد.", requests: "درخواست‌ها", errors: "خطاها", latency: "تأخیر", avg: "میانگین", ok: "موفق", upstream: "آپ‌استریم",
+    noKeys: "کلیدی نیست. توکن ادمین را در تنظیمات بگذارید و IGNPRE_API_KEYS=False کنید، یا True بگذارید برای دسترسی آزاد.",
+    loading: "در حال بارگذاری...", proxyAdded: "پروکسی اضافه شد", saveFailed: "ذخیره ناموفق بود", startFailed: "شروع ناموفق بود", mode: "حالت",
   },
 } as const;
 
-async function copyText(text: string, fallback: (m: string) => void) {
+async function copyText(text: string, feedback: (m: string) => void, okLabel = "Copied") {
   try {
     await navigator.clipboard.writeText(text);
-    fallback("Copied");
+    feedback(okLabel);
   } catch {
     const ta = document.createElement("textarea");
     ta.value = text;
@@ -64,7 +68,7 @@ async function copyText(text: string, fallback: (m: string) => void) {
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand("copy"); fallback("Copied"); } catch { fallback(text); }
+    try { document.execCommand("copy"); feedback(okLabel); } catch { feedback(text); }
     ta.remove();
   }
 }
@@ -153,13 +157,13 @@ export default function App() {
     setSettings(next);
     applyTheme(next.theme);
     applyLang((next.language as any) || "en");
-    try { await invoke("save_settings_cmd", { settings: next }); } catch (e: any) { showToast(`Save failed: ${e}`); }
+    try { await invoke("save_settings_cmd", { settings: next }); } catch (e: any) { showToast(`${T[next.language as "en" | "fa"]?.saveFailed ?? "Save failed"}: ${e}`); }
   }
 
   async function doStart() {
     setBusy(true);
     try { await invoke("start_server"); showToast(t.running); }
-    catch (e: any) { showToast(`Start failed: ${e}`); }
+    catch (e: any) { showToast(`${t.startFailed}: ${e}`); }
     setBusy(false);
     setTimeout(loadAll, 1500);
   }
@@ -205,7 +209,7 @@ export default function App() {
   }
 
   async function runTester(method: string) {
-    setTesterOut("Loading...");
+    setTesterOut(t.loading);
     try {
       const opts: any = { headers: { "Content-Type": "application/json", Authorization: `Bearer test` } };
       if (method !== "GET") { opts.method = method; opts.body = testerBody; }
@@ -221,7 +225,7 @@ export default function App() {
     const entry: ProxyEntry = { id: Date.now().toString(), url, enabled: true };
     await save({ ...settings, proxyList: [...settings.proxyList, entry] });
     setNewProxy("");
-    showToast("Proxy added");
+    showToast(t.proxyAdded);
   }
 
   const stats = useMemo(() => ({
@@ -289,7 +293,7 @@ export default function App() {
             <p className="muted">{lang === "fa" ? "سرور لوکال OpenAI-compatible روی ماشین شما" : "Local OpenAI-compatible server on this machine"}</p>
           </div>
           <div className="top-actions">
-            <button className="btn ghost" onClick={() => copyText(v1Url, () => showToast(t.copiedUrl))}>{t.copy} Base URL</button>
+            <button className="btn ghost" onClick={() => copyText(v1Url, () => showToast(t.copiedUrl), t.copied)}>{t.copy} Base URL</button>
             <button className="btn" onClick={loadAll}>{t.refresh}</button>
           </div>
         </header>
@@ -302,17 +306,17 @@ export default function App() {
                 <p className="muted">{t.ready}</p>
                 <div className="urlrow">
                   <code className="url">{v1Url}</code>
-                  <button className="btn primary" onClick={() => copyText(v1Url, () => showToast(t.copiedUrl))}>{t.copy}</button>
+                  <button className="btn primary" onClick={() => copyText(v1Url, () => showToast(t.copiedUrl), t.copied)}>{t.copy}</button>
                 </div>
                 <div className="urlrow secondary">
                   <code className="url">{baseUrl}</code>
-                  <button className="btn" onClick={() => copyText(baseUrl, () => showToast(t.copiedUrl))}>{t.copy}</button>
+                  <button className="btn" onClick={() => copyText(baseUrl, () => showToast(t.copiedUrl), t.copied)}>{t.copy}</button>
                 </div>
                 <div className="statgrid">
                   <div className="stat"><span className="stat-label">{t.running}</span><strong>{status ? "●" : "○"}</strong><span className="muted">{status ? settings.port : "—"}</span></div>
-                  <div className="stat"><span className="stat-label">Requests</span><strong>{stats.total}</strong><span className="muted">{stats.success} ok</span></div>
-                  <div className="stat"><span className="stat-label">Errors</span><strong>{stats.errors}</strong><span className="muted">{metrics?.upstream_errors ?? 0} upstream</span></div>
-                  <div className="stat"><span className="stat-label">Latency</span><strong>{stats.avg}s</strong><span className="muted">avg</span></div>
+                  <div className="stat"><span className="stat-label">{t.requests}</span><strong>{stats.total}</strong><span className="muted">{stats.success} {t.ok}</span></div>
+                  <div className="stat"><span className="stat-label">{t.errors}</span><strong>{stats.errors}</strong><span className="muted">{metrics?.upstream_errors ?? 0} {t.upstream}</span></div>
+                  <div className="stat"><span className="stat-label">{t.latency}</span><strong>{stats.avg}s</strong><span className="muted">{t.avg}</span></div>
                 </div>
                 {metrics?.last_error && <div className="notice">{t.lastError}: <code>{metrics.last_error}</code></div>}
               </div>
@@ -357,16 +361,16 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
 
           {tab === "keys" && (
             <section className="card stack">
-              <div className="row between"><h2>{t.keys}</h2><button className="btn primary" onClick={createKey}>{t.create}</button></div>
-              {keys.length === 0 && <p className="muted">No keys. Set ADMIN_TOKEN in Settings and start the server with IGNPRE_API_KEYS=False, or leave it True for open access.</p>}
+              <div className="row between"><h2>{t.keys}</h2><button className="btn primary" disabled={busy} onClick={createKey}>{t.create}</button></div>
+              {keys.length === 0 && <p className="muted bidi">{t.noKeys}</p>}
               <ul className="keylist">
                 {keys.map((k: any) => (
                   <li key={k.id} className="keyrow">
-                    <code className="mono">{k.key}</code>
-                    <span className="muted">{k.description || ""}</span>
+                    <code className="mono" dir="ltr">{k.key}</code>
+                    <span className="muted key-desc" dir="auto">{k.description || ""}</span>
                     <span className="spacer" />
                     <button className="btn sm" onClick={() => copyText(k.key, showToast)}>{t.copy}</button>
-                    <button className="btn sm danger" onClick={async () => { await fetch(`${baseUrl}/api-keys/${k.key}`, { method: "DELETE", headers: { Authorization: `Bearer ${settings.adminToken}` } }); refreshKeys(); }}>{t.delete}</button>
+                    <button className="btn sm danger" onClick={async () => { if (!confirm(lang === "fa" ? "این کلید حذف شود؟" : "Delete this key?")) return; await fetch(`${baseUrl}/api-keys/${k.key}`, { method: "DELETE", headers: { Authorization: `Bearer ${settings.adminToken}` } }); refreshKeys(); }}>{t.delete}</button>
                   </li>
                 ))}
               </ul>
@@ -398,12 +402,12 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                 <label className="check"><input type="checkbox" checked={settings.autoStartServer} onChange={(e) => save({ ...settings, autoStartServer: e.target.checked })} /> {t.autoStart}</label>
                 <label className="check"><input type="checkbox" checked={settings.autostart} onChange={(e) => save({ ...settings, autostart: e.target.checked })} /> {t.autostart}</label>
                 <label className="check"><input type="checkbox" checked={settings.minimizeToTray} onChange={(e) => save({ ...settings, minimizeToTray: e.target.checked })} /> {t.minimize}</label>
-                <label className="check"><input type="checkbox" checked={settings.autoUpdate} onChange={(e) => save({ ...settings, autoUpdate: e.target.checked })} /> Auto-update</label>
+                <label className="check"><input type="checkbox" checked={settings.autoUpdate} onChange={(e) => save({ ...settings, autoUpdate: e.target.checked })} /> {t.autoUpdate}</label>
               </div>
 
               <div className="card stack">
                 <h2>{t.proxy}</h2>
-                <label className="field"><span>Mode</span>
+                <label className="field"><span>{t.mode}</span>
                   <select className="input" value={settings.proxyMode} onChange={(e) => save({ ...settings, proxyMode: e.target.value })}>
                     <option value="direct">{t.direct}</option>
                     <option value="system">{t.systemProxy}</option>
@@ -419,7 +423,7 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                     <ul className="keylist">
                       {settings.proxyList.map((p) => (
                         <li key={p.id} className="keyrow">
-                          <code className="mono">{p.url}</code>
+                          <code className="mono" dir="ltr">{p.url}</code>
                           <label className="check inline"><input type="checkbox" checked={p.enabled} onChange={(e) => save({ ...settings, proxyList: settings.proxyList.map((x) => x.id === p.id ? { ...x, enabled: e.target.checked } : x) })} /> {t.enable}</label>
                           <span className="spacer" />
                           <button className="btn sm" onClick={() => invoke("test_proxy", { url: p.url }).then((r: any) => showToast(String(r))).catch((e: any) => showToast(String(e)))}>{t.test}</button>
@@ -452,7 +456,7 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
         </div>
       </div>
 
-      {toast && <div className="toast">{toast}</div>}
+      {toast && <div className="toast" role="status" aria-live="polite">{toast}</div>}
     </div>
   );
 }

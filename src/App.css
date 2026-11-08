@@ -84,7 +84,13 @@ h1 { font-size: 20px; }
 h2 { font-size: 15px; }
 h3 { font-size: 12px; font-weight: 500; color: var(--text2); text-transform: none; letter-spacing: .02em; }
 p { margin: 0; }
-.mono, code, pre, .url, .code { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: plaintext; text-align: left; }
+.mono, code, pre, .url, .code { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+code, .url { direction: ltr; unicode-bidi: plaintext; text-align: left; }
+pre.code { direction: ltr; text-align: left; unicode-bidi: plaintext; white-space: pre-wrap; word-break: break-word; }
+.bidi { direction: auto; unicode-bidi: plaintext; text-align: start; overflow-wrap: anywhere; }
+.key-desc { flex: 1 1 140px; min-width: 120px; direction: auto; unicode-bidi: plaintext; text-align: start; overflow-wrap: anywhere; }
+.keyrow code { flex: 0 1 220px; min-width: 0; }
+.keyrow .spacer { flex: 1; min-width: 8px; }
 .muted { color: var(--text2); }
 .label { display: block; font-size: 12px; color: var(--text2); margin: 14px 0 6px; font-weight: 500; }
 
@@ -174,12 +180,14 @@ select.input { appearance: auto; }
 .settings { display: grid; gap: 16px; }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 9999px; font-size: 13px; box-shadow: var(--shadow-md); z-index: 50; max-width: min(90vw, 560px); text-align: center; }
 
-/* RTL adjustments */
+/* RTL adjustments — code/URLs stay LTR, prose follows UI language */
 .rtl { text-align: right; }
 .rtl .navbtn, .rtl .topbar, .rtl .sidefoot { text-align: right; }
 .rtl .urlrow { direction: ltr; }
-.rtl .code { text-align: right; }
-.rtl .code, .rtl .url, .rtl .urlrow { direction: ltr; unicode-bidi: plaintext; text-align: left; }
+.rtl .topbar .top-actions { direction: ltr; }
+.rtl .content { text-align: right; }
+.rtl .card, .rtl .hero { text-align: start; }
+.rtl .key-desc, .rtl .muted, .rtl .label, .rtl .check { text-align: start; direction: auto; unicode-bidi: plaintext; }
 
 @media (max-width: 980px) {
   .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; }
