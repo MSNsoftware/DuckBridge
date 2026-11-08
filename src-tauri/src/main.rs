@@ -18,6 +18,7 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 struct AppSettings {
     host: String,
     port: u16,
+    require_api_keys: bool,
     auto_start_server: bool,
     autostart: bool,
     minimize_to_tray: bool,
@@ -41,6 +42,7 @@ impl Default for AppSettings {
         AppSettings {
             host: "127.0.0.1".into(),
             port: 8765,
+            require_api_keys: false,
             auto_start_server: true,
             autostart: false,
             minimize_to_tray: true,
@@ -170,6 +172,13 @@ fn get_settings(app: AppHandle) -> AppSettings {
     load_settings(&app)
 }
 
+fn write_server_dotenv(server_dir: &std::path::Path, s: &AppSettings) {
+    let env_path = server_dir.join(".env");
+    let ignore = if s.require_api_keys { "False" } else { "True" };
+    let content = format!("IGNPRE_API_KEYS={}\nADMIN_TOKEN={}\nDATABASE_URL=\nPORT={}\nHOST={}\n", ignore, s.admin_token, s.port, s.host);
+    let _ = fs::write(&env_path, content);
+}
+
 #[tauri::command]
 fn save_settings_cmd(app: AppHandle, settings: AppSettings) {
     if settings.autostart {
@@ -178,6 +187,9 @@ fn save_settings_cmd(app: AppHandle, settings: AppSettings) {
         let _ = app.autolaunch().disable();
     }
     save_settings(&app, &settings);
+    // keep server/.env in sync so plain uvicorn also respects the toggle
+    let dir = find_server_dir();
+    if dir.exists() { write_server_dotenv(&dir, &settings); }
 }
 
 #[tauri::command]
@@ -234,6 +246,8 @@ fn start_server(
         return Err(msg);
     }
     let python = find_python();
+    let ignore = if settings.require_api_keys { "False" } else { "True" };
+    write_server_dotenv(&server_dir, &settings);
     let mut cmd = Command::new(&python);
     cmd.arg("-m").arg("uvicorn").arg("main:app")
         .arg("--host").arg(&settings.host)
@@ -242,7 +256,8 @@ fn start_server(
         .env("HOST", &settings.host)
         .env("PORT", settings.port.to_string())
         .env("ADMIN_TOKEN", &settings.admin_token)
-        .env("IGNPRE_API_KEYS", "True")
+        .env("IGNPRE_API_KEYS", ignore)
+        .env("DATABASE_URL", "")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     // proxy env for upstream (duck.ai)

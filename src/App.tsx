@@ -5,6 +5,7 @@ type ProxyEntry = { id: string; url: string; enabled: boolean };
 type Settings = {
   host: string;
   port: number;
+  requireApiKeys: boolean;
   autoStartServer: boolean;
   autostart: boolean;
   minimizeToTray: boolean;
@@ -26,6 +27,7 @@ const T = {
     copy: "Copy", copied: "Copied", health: "Health", metrics: "Metrics",
     server: "Server", proxy: "Proxy", appearance: "Appearance", system: "System",
     host: "Host", port: "Port", adminToken: "Admin token",
+    requireKeys: "Require API key", openAccess: "Open access — anyone on this machine can call the API. Turning this on requires a real key on every call and unlocks key management. Takes effect after a server restart.",
     autoStart: "Auto-start server", autostart: "Autostart at login", minimize: "Minimize to tray on close", autoUpdate: "Auto-update",
     direct: "Direct — no proxy", systemProxy: "System proxy", manual: "Manual list",
     add: "Add proxy", test: "Test", delete: "Delete", enable: "Enable",
@@ -44,6 +46,7 @@ const T = {
     copy: "کپی", copied: "کپی شد", health: "وضعیت", metrics: "آمار",
     server: "سرور", proxy: "پروکسی", appearance: "ظاهر", system: "سیستم",
     host: "هاست", port: "پورت", adminToken: "توکن ادمین",
+    requireKeys: "اجبار کلید API", openAccess: "دسترسی آزاد — هر کسی روی این ماشین می‌تواند به API وصل شود. روشن کردن این گزینه یعنی هر درخواست باید کلید واقعی داشته باشد و مدیریت کلیدها فعال می‌شود. بعد از ری‌استارت سرور اعمال می‌شود.",
     autoStart: "شروع خودکار سرور", autostart: "اجرا با ورود به سیستم", minimize: "با بستن پنجره به ترای برود", autoUpdate: "به‌روزرسانی خودکار",
     direct: "مستقیم — بدون پروکسی", systemProxy: "پروکسی سیستم", manual: "لیست دستی",
     add: "افزودن پروکسی", test: "تست", delete: "حذف", enable: "فعال",
@@ -78,7 +81,7 @@ export default function App() {
   const [lang, setLang] = useState<"en" | "fa">("en");
   const [theme, setTheme] = useState("system");
   const [settings, setSettings] = useState<Settings>({
-    host: "127.0.0.1", port: 8765, autoStartServer: true, autostart: false,
+    host: "127.0.0.1", port: 8765, requireApiKeys: false, autoStartServer: true, autostart: false,
     minimizeToTray: true, autoUpdate: false, theme: "system", language: "en",
     proxyMode: "direct", proxyList: [], adminToken: "your-super-secret-admin-token",
   });
@@ -231,7 +234,8 @@ export default function App() {
   async function runTester(method: string) {
     setTesterOut(t.loading);
     try {
-      const opts: any = { headers: { "Content-Type": "application/json", Authorization: `Bearer test` } };
+      const useKey = settings.requireApiKeys ? (keys[0]?.key || settings.adminToken) : "test";
+      const opts: any = { headers: { "Content-Type": "application/json", Authorization: `Bearer ${useKey}` } };
       if (method !== "GET") { opts.method = method; opts.body = testerBody; }
       const r = await fetch(`${baseUrl}${testerUrl}`, opts);
       const tx = await r.text();
@@ -395,8 +399,9 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
 
           {tab === "keys" && (
             <section className="card stack">
-              <div className="row between"><h2>{t.keys}</h2><button className="btn primary" disabled={busy} onClick={createKey}>{t.create}</button></div>
-              {keys.length === 0 && <p className="muted bidi">{t.noKeys}</p>}
+              <div className="row between"><h2>{t.keys}</h2><button className="btn primary" disabled={busy || !settings.requireApiKeys} onClick={createKey}>{t.create}</button></div>
+              {!settings.requireApiKeys && <p className="muted bidi">{t.openAccess}</p>}
+              {settings.requireApiKeys && keys.length === 0 && <p className="muted bidi">{t.noKeys}</p>}
               <ul className="keylist">
                 {keys.map((k: any) => (
                   <li key={k.id} className="keyrow">
@@ -433,6 +438,8 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                   <label className="field"><span>{t.host}</span><input className="input" value={settings.host} onChange={(e) => save({ ...settings, host: e.target.value })} /></label>
                   <label className="field"><span>{t.port}</span><input className="input" type="number" value={settings.port} onChange={(e) => save({ ...settings, port: Number(e.target.value) })} /></label>
                 </div>
+                <label className="check"><input type="checkbox" checked={settings.requireApiKeys} onChange={(e) => save({ ...settings, requireApiKeys: e.target.checked })} /> {t.requireKeys}</label>
+                <p className="muted">{t.openAccess}</p>
                 <label className="check"><input type="checkbox" checked={settings.autoStartServer} onChange={(e) => save({ ...settings, autoStartServer: e.target.checked })} /> {t.autoStart}</label>
                 <label className="check"><input type="checkbox" checked={settings.autostart} onChange={(e) => save({ ...settings, autostart: e.target.checked })} /> {t.autostart}</label>
                 <label className="check"><input type="checkbox" checked={settings.minimizeToTray} onChange={(e) => save({ ...settings, minimizeToTray: e.target.checked })} /> {t.minimize}</label>

@@ -214,6 +214,8 @@ async def health():
         "models": len(SUPPORTED_MODELS),
         "default_model": DEFAULT_MODEL,
         "bind": f"{HOST}:{PORT}",
+        "auth_enabled": IGNPRE_API_KEYS != "True",
+        "admin_token_set": bool(ADMIN_TOKEN),
     }
 
 @app.get("/metrics")
