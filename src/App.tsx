@@ -181,6 +181,7 @@ export default function App() {
   async function createKey() {
     const desc = prompt(lang === "fa" ? "توضیح:" : "Description:");
     if (desc === null) return;
+    setBusy(true);
     try {
       const r = await fetch(`${baseUrl}/api-keys`, {
         method: "POST",
@@ -190,6 +191,15 @@ export default function App() {
       const j = await r.json();
       if (j.key) { await copyText(j.key, showToast); }
       else showToast(j.detail || "Error");
+      refreshKeys();
+    } catch (e: any) { showToast(`${e}`); }
+    setBusy(false);
+  }
+
+  async function deleteKey(k: string) {
+    if (!confirm(lang === "fa" ? "این کلید حذف شود؟" : "Delete this key?")) return;
+    try {
+      await fetch(`${baseUrl}/api-keys/${k}`, { method: "DELETE", headers: { Authorization: `Bearer ${settings.adminToken}` } });
       refreshKeys();
     } catch (e: any) { showToast(`${e}`); }
   }
