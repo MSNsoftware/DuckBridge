@@ -210,6 +210,10 @@ select.input { appearance: auto; }
 .ctxmenu { position: fixed; z-index: 60; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-md); padding: 4px; min-width: 140px; }
 .ctxitem { display: block; width: 100%; text-align: start; background: transparent; border: 0; padding: 8px 10px; font-size: 13px; color: var(--text); cursor: pointer; border-radius: 6px; font-family: inherit; }
 .ctxitem:hover { background: var(--surface2); }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 70; }
+.dialog { width: min(420px, 92vw); background: var(--surface); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-md); border: 1px solid var(--border); }
+.dialog .row { margin-top: 16px; justify-content: flex-end; }
+.danger-btn { background: var(--bad) !important; color: #fff !important; border-color: var(--bad) !important; }
 
 /* RTL adjustments — code/URLs stay LTR, prose follows UI language */
 .rtl { text-align: right; }

@@ -32,7 +32,7 @@ const T = {
     direct: "Direct — no proxy", systemProxy: "System proxy", manual: "Manual list",
     add: "Add proxy", test: "Test", delete: "Delete", enable: "Enable",
     theme: "Theme", language: "Language", light: "Light", dark: "Dark", systemTheme: "System",
-    create: "Create key", refresh: "Refresh", clear: "Clear", send: "Send",
+    create: "Create key", createTitle: "Create API key", description: "Description", cancel: "Cancel", confirmDelete: "Delete this key?", refresh: "Refresh", clear: "Clear", send: "Send",
     endpoint: "Endpoint", body: "Body (JSON)", response: "Response",
     lastError: "Last error", noModels: "No models loaded. Start the server.",
     copiedUrl: "Base URL copied.", requests: "Requests", errors: "Errors", latency: "Latency", avg: "avg", ok: "ok", upstream: "upstream",
@@ -51,7 +51,7 @@ const T = {
     direct: "مستقیم — بدون پروکسی", systemProxy: "پروکسی سیستم", manual: "لیست دستی",
     add: "افزودن پروکسی", test: "تست", delete: "حذف", enable: "فعال",
     theme: "پوسته", language: "زبان", light: "روشن", dark: "تیره", systemTheme: "سیستم",
-    create: "ساخت کلید", refresh: "به‌روزرسانی", clear: "پاک کردن", send: "ارسال",
+    create: "ساخت کلید", createTitle: "ساخت کلید API", description: "توضیح", cancel: "لغو", confirmDelete: "این کلید حذف شود؟", refresh: "به‌روزرسانی", clear: "پاک کردن", send: "ارسال",
     endpoint: "نقطه پایانی", body: "بدنه (JSON)", response: "پاسخ",
     lastError: "آخرین خطا", noModels: "مدلی بارگذاری نشده. سرور را شروع کنید.",
     copiedUrl: "آدرس پایه کپی شد.", requests: "درخواست‌ها", errors: "خطاها", latency: "تأخیر", avg: "میانگین", ok: "موفق", upstream: "آپ‌استریم",
@@ -97,6 +97,8 @@ export default function App() {
   const [testerBody, setTesterBody] = useState('{"model":"gpt-6-luna","messages":[{"role":"user","content":"Reply exactly: OK"}]}');
   const [testerOut, setTesterOut] = useState("");
   const [newProxy, setNewProxy] = useState("");
+  const [modal, setModal] = useState<{ type: "create" } | { type: "delete"; key: string } | null>(null);
+  const [descInput, setDescInput] = useState("");
 
   const t = T[lang];
   const baseUrl = `http://${settings.host}:${settings.port}`;
@@ -223,8 +225,13 @@ export default function App() {
   useEffect(() => { if (tab === "keys") refreshKeys(); }, [tab, baseUrl, settings.adminToken]);
 
   async function createKey() {
-    const desc = prompt(lang === "fa" ? "توضیح:" : "Description:");
-    if (desc === null) return;
+    setDescInput("");
+    setModal({ type: "create" });
+  }
+
+  async function confirmCreateKey() {
+    const desc = descInput;
+    setModal(null);
     setBusy(true);
     try {
       const r = await fetch(`${baseUrl}/api-keys`, {
@@ -241,7 +248,13 @@ export default function App() {
   }
 
   async function deleteKey(k: string) {
-    if (!confirm(lang === "fa" ? "این کلید حذف شود؟" : "Delete this key?")) return;
+    setModal({ type: "delete", key: k });
+  }
+
+  async function confirmDeleteKey() {
+    if (!modal || modal.type !== "delete") return;
+    const k = (modal as any).key;
+    setModal(null);
     try {
       await fetch(`${baseUrl}/api-keys/${k}`, { method: "DELETE", headers: { Authorization: `Bearer ${settings.adminToken}` } });
       refreshKeys();
@@ -531,6 +544,30 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
       {ctx && (
         <div className="ctxmenu" style={{ left: ctx.x, top: ctx.y }} role="menu">
           <button className="ctxitem" onClick={() => { copyText(ctx.text, showToast, t.copied); setCtx(null); }} role="menuitem">{t.copy}</button>
+        </div>
+      )}
+      {modal && (
+        <div className="overlay" role="dialog" aria-modal="true">
+          <div className="dialog card">
+            {modal.type === "create" ? (
+              <>
+                <h2>{t.createTitle}</h2>
+                <label className="field"><span>{t.description}</span><input className="input" autoFocus value={descInput} onChange={(e) => setDescInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") confirmCreateKey(); }} /></label>
+                <div className="row">
+                  <button className="btn" onClick={() => setModal(null)}>{t.cancel}</button>
+                  <button className="btn primary" disabled={busy} onClick={confirmCreateKey}>{t.create}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2>{t.confirmDelete}</h2>
+                <div className="row">
+                  <button className="btn" onClick={() => setModal(null)}>{t.cancel}</button>
+                  <button className="btn primary danger-btn" onClick={confirmDeleteKey}>{t.delete}</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
