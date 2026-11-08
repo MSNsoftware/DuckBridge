@@ -297,7 +297,9 @@ fn main() {
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_item, &start_item, &stop_item, &quit_item])?;
 
+            let tray_icon = tauri::include_image!("icons/icon.png");
             let _tray = TrayIconBuilder::new()
+                .icon(tray_icon)
                 .tooltip("DuckBridge")
                 .menu(&menu)
                 .show_menu_on_left_click(false)

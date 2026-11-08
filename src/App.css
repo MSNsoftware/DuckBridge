@@ -98,8 +98,8 @@ pre.code { direction: ltr; text-align: left; unicode-bidi: plaintext; white-spac
 .shell { display: grid; grid-template-columns: 264px 1fr; height: 100vh; max-width: 1600px; margin: 0 auto; }
 .sidebar { background: var(--surface); border-inline-end: 1px solid var(--border); padding: 16px 8px 12px; display: flex; flex-direction: column; gap: 16px; overflow: auto; }
 .brand { display: flex; gap: 10px; align-items: center; padding: 0 8px 8px; }
-.mark { width: 36px; height: 36px; border-radius: 8px; flex: none; line-height: 1; display: grid; place-items: center; overflow: hidden; }
-.mark svg { display: block; width: 36px; height: 36px; }
+.mark { width: 40px; height: 40px; border-radius: 10px; flex: none; line-height: 1; display: grid; place-items: center; overflow: hidden; }
+.mark svg { display: block; width: 40px; height: 40px; }
 .wordmark { font-weight: 600; font-size: 15px; line-height: 1.1; }
 .sub { font-size: 12px; color: var(--text3); margin-top: 1px; }
 .nav { display: flex; flex-direction: column; gap: 2px; }
