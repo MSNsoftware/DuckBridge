@@ -460,11 +460,15 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                 <ul className="modelgrid">
                   {models.map((m) => (
                     <li key={m.id} className={`modelrow ${m.free ? "" : "paid"}`}>
-                      <span className={`dot ${m.free ? "on" : "off"}`} aria-hidden="true" />
-                      <code className="mono" dir="ltr">{m.id}</code>
-                      {!m.free && <span className="badge">{lang === "fa" ? "پولی" : "Paid"}</span>}
-                      <span className="spacer" />
-                      {m.free ? <button className="btn sm" onClick={() => copyText(m.id, showToast, t.copied)}>{t.copy}</button> : <span className="muted">{lang === "fa" ? "در دسترس نیست" : "Unavailable"}</span>}
+                      <div className="model-top">
+                        <span className={`dot ${m.free ? "on" : "off"}`} aria-hidden="true" />
+                        <code className="mono" dir="ltr">{m.id}</code>
+                        <span className="spacer" />
+                        {m.free ? <button className="btn sm" onClick={() => copyText(m.id, showToast, t.copied)}>{t.copy}</button> : <span className="badge">{lang === "fa" ? "پولی" : "Paid"}</span>}
+                      </div>
+                      <div className="model-meta">
+                        {!m.free && <span className="model-note">{lang === "fa" ? "در دسترس نیست" : "Unavailable"}</span>}
+                      </div>
                     </li>
                   ))}
                 </ul>
