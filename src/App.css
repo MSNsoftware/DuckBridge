@@ -216,6 +216,10 @@ select.input { appearance: auto; }
 .legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
 .settings { display: grid; gap: 16px; }
 .about { display: grid; gap: 16px; }
+.about-head { display: flex; align-items: center; gap: 12px; }
+.about-name h2 { font-size: 20px; }
+.about-name-ltr { direction: ltr; unicode-bidi: plaintext; text-align: start; display: block; }
+.about-link { direction: ltr; text-align: start; display: inline-block; }
 .about-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .about-item { display: grid; gap: 2px; background: var(--surface2); border-radius: 12px; padding: 12px 14px; }
 .about-item span { font-size: 11px; color: var(--text3); }

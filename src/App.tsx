@@ -580,11 +580,11 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
               <div className="about-grid">
                 <div className="about-item">
                   <span>{lang === "fa" ? "برنامه‌ریزی و توسعه" : "Programmed by"}</span>
-                  <strong>Mohammad Sadegh Norouzian</strong>
+                  <strong dir="auto" className="about-name-ltr">{lang === "fa" ? "محمد صادق نوروزیان" : "Mohammad Sadegh Norouzian"}</strong>
                 </div>
                 <div className="about-item">
                   <span>Telegram</span>
-                  <a href="https://t.me/MSNoroozian" target="_blank" rel="noreferrer">@MSNoroozian</a>
+                  <a href="https://t.me/MSNoroozian" target="_blank" rel="noreferrer" dir="ltr" className="about-link">MSNoroozian</a>
                 </div>
                 <div className="about-item">
                   <span>Stack</span>
@@ -595,8 +595,8 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                   <code dir="ltr">0.1.0</code>
                 </div>
               </div>
-              <p className="muted">{lang === "fa" ? "اپ به‌عنوان «رباط API‌ساز» ساخته شده — نه چت‌اپ. سرور محلی روی 127.0.0.1:8765 اجرا می‌شود و یک API سازگار با OpenAI می‌سازد (چت، لیست مدل‌ها، تولید تصویر) تا هر اپ دیگر از آن استفاده کند." : "Built as an API-making sidecar — not a chat app. The local server runs on 127.0.0.1:8765 and serves an OpenAI-compatible API (chat, models, image generation) for other clients to use."}</p>
-              <p className="muted">{lang === "fa" ? "Unofficial — برای استفاده شخصی/آموزشی. وابسته به DuckDuckGo نیست." : "Unofficial — for personal/educational use. Not affiliated with DuckDuckGo."}</p>
+              <p className="muted bidi">{lang === "fa" ? "اپ به‌عنوان «رباط API‌ساز» ساخته شده — نه چت‌اپ. سرور محلی روی 127.0.0.1:8765 اجرا می‌شود و یک API سازگار با OpenAI می‌سازد (چت، لیست مدل‌ها، تولید تصویر) تا هر اپ دیگر از آن استفاده کند." : "Built as an API-making sidecar — not a chat app. The local server runs on 127.0.0.1:8765 and serves an OpenAI-compatible API (chat, models, image generation) for other clients to use."}</p>
+              <p className="muted bidi">{lang === "fa" ? "غیر رسمی — برای استفاده شخصی/آموزشی. وابسته به DuckDuckGo نیست." : "Unofficial — for personal/educational use. Not affiliated with DuckDuckGo."}</p>
             </section>
           )}
         </div>
