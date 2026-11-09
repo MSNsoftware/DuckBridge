@@ -290,6 +290,12 @@ fn start_server(
         .env("DATABASE_URL", "")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
     // proxy env for upstream (duck.ai)
     if settings.proxy_mode == "system" {
         // leave to OS env
@@ -328,6 +334,9 @@ fn stop_server(state: tauri::State<'_, Arc<Mutex<ServerState>>>) -> Result<(), S
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.unminimize(); let _ = w.set_focus(); }
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
