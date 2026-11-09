@@ -166,16 +166,21 @@ export default function App() {
           const kj = await kr.json();
           const list = kj.api_keys || [];
           setKeys(list);
-          if (!s.requireApiKeys) { /* open mode: no check */ }
+          if (!s.requireApiKeys) apiKeyForModels = null;
           else if (list.length) apiKeyForModels = list[0].key;
+          else apiKeyForModels = s.adminToken; // admin can list models too (desktop internal)
         } else {
           setKeys([]);
+          if (!s.requireApiKeys) apiKeyForModels = null;
+          else apiKeyForModels = s.adminToken;
         }
       } catch { setKeys([]); }
       try {
         const headers: Record<string, string> = {};
         if (apiKeyForModels) headers.Authorization = `Bearer ${apiKeyForModels}`;
         else if (!s.requireApiKeys) headers.Authorization = `Bearer anything`;
+        // if require on and no key yet, fall back to admin token for desktop discovery
+        if (!headers.Authorization && s.requireApiKeys) headers.Authorization = `Bearer ${s.adminToken}`;
         // if require on and no key yet, leave header off -> server 401, UI shows empty correctly
         const m = await fetch(`${b}/v1/models`, { headers });
         if (m.ok) { const j = await m.json(); setModels((j.data || []).map((d: any) => ({ id: d.id, free: d.free !== false, name: d.name }))); } else setModels([]);

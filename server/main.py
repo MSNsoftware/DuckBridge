@@ -144,6 +144,9 @@ async def get_api_key(authorization: Optional[str] = Header(None)):
     finally:
         conn.close()
     if not result:
+        # admin token is also accepted for read-only discovery (/v1/models)
+        if token == ADMIN_TOKEN:
+            return token
         raise HTTPException(status_code=401, detail="Invalid API Key")
     return token
 
