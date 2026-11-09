@@ -34,7 +34,16 @@
     "category": "DeveloperTool",
     "shortDescription": "Local Duck.ai API gateway",
     "longDescription": "DuckBridge - local OpenAI-compatible gateway for Duck.ai with tray, settings and sidecar server.",
-    "resources": ["../server/**/*"],
+    "resources": [
+      "../server/main.py",
+      "../server/duckai_backend.py",
+      "../server/jsa_jsdom.js",
+      "../server/package.json",
+      "../server/package-lock.json",
+      "../server/requirements.txt",
+      "../server/website.html",
+      "../server/.env.example"
+    ],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",

@@ -275,6 +275,15 @@ fn start_server(
         push_log(format!("[{}] {}", chrono::Local::now().format("%H:%M:%S"), msg));
         return Err(msg);
     }
+    if !server_dir.join("node_modules").join("jsdom").exists() {
+        push_log(format!("[{}] jsdom missing, running npm install ...", chrono::Local::now().format("%H:%M:%S")));
+        let npm = "npm";
+        let _ = Command::new(npm).arg("--prefix").arg(&server_dir).arg("install")
+            .current_dir(&server_dir)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status();
+    }
     let python = find_python();
     let ignore = if settings.require_api_keys { "False" } else { "True" };
     write_server_dotenv(&server_dir, &settings);
