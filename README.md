@@ -1,3 +1,4 @@
+
 # DuckBridge Desktop
 
 Local Duck.ai API gateway manager — Tauri + React (Windows/Linux). Not a chat UI, just an API sidecar manager + settings.
@@ -11,14 +12,14 @@ Local Duck.ai API gateway manager — Tauri + React (Windows/Linux). Not a chat 
 ### معرفی
 DuckBridge یک اپ دسکتاپ سبک روی ویندوز/لینوکس هست که سرور FastAPI + Node jsdom رو روی ماشین خودت بالا میاره و یک API شبیه OpenAI میده — چت، لیست مدل‌ها و تولید عکس — بدون اینکه نیاز به کلید OpenAI داشته باشی. اپ خودش «چت» ندارد، فقط سرور را مدیریت می‌کند.
 
-### نیازمندی‌های اجرا (قبل از نصف کار)
-- **ویندوز 10/11 یا لینوکس (Debian/Ubuntu)**
-- **Node.js 18 به بالا** — برای solver jsdom (چلنج duck.ai)
-- **Python 3.11 به بالا** — برای سرور FastAPI
-- **Rust toolchain** — فقط اگر خودت بخوای از کد بیلد بگیری (`cargo` و `rustc`)
-- **Git** — برای کلون کردن ریپو
+### نیازمندی‌های قبل (قبل از نصف کار)
+- ویندوز 10/11 یا لینوکس (Debian/Ubuntu)
+- Node.js 18 به بالا — برای solver jsdom (چلنج duck.ai)
+- Python 3.11 به بالا — برای سرور FastAPI
+- Git — برای کلون کردن ریپو
+- Rust toolchain — فقط اگر خودت بخوای از کد بیلد بگیری (`cargo` و `rustc`)
 
-### بعد از نصف (بعد از اینکه نیازمندی‌ها رو داری)
+### بعد از نصف (وقتی نیازمندی‌ها رو داری)
 1. ریپو رو کلون کن:
    ```bat
    git clone https://github.com/OWNER/duckbridge.git
@@ -28,7 +29,7 @@ DuckBridge یک اپ دسکتاپ سبک روی ویندوز/لینوکس هست
    ```bat
    npm install
    ```
-3. وابستگی‌های سرور رو نصب کن (برای jsdom — بدون این چت کار نمی‌کنه):
+3. وابستگی‌های سرور رو نصب کن (برای jsdom — بدون این چت کار نمی‌کند):
    ```bat
    npm --prefix server install
    pip install -r server/requirements.txt
