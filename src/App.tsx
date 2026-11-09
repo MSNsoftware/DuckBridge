@@ -446,7 +446,7 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                     <span className="muted key-desc" dir="auto">{k.description || ""}</span>
                     <span className="spacer" />
                     <button className="btn sm" onClick={() => copyText(k.key, showToast)}>{t.copy}</button>
-                    <button className="btn sm danger" onClick={async () => { if (!confirm(lang === "fa" ? "این کلید حذف شود؟" : "Delete this key?")) return; await fetch(`${baseUrl}/api-keys/${k.key}`, { method: "DELETE", headers: { Authorization: `Bearer ${settings.adminToken}` } }); refreshKeys(); }}>{t.delete}</button>
+                    <button className="btn sm danger" onClick={() => deleteKey(k.key)}>{t.delete}</button>
                   </li>
                 ))}
               </ul>
