@@ -49,7 +49,7 @@
     "updater": {
       "active": true,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdGRjlFNDBFMjFBMkJGQjkKUldTNXY2SWhEdVQ1ZjdYN3VVQ3hZK2Zqcm1TSEJ6WW93Yjdqc1N1ZXVCL1FFQnFyaittREV2bGsK",
-      "endpoints": ["https://github.com/OWNER/duckbridge/releases/latest/download/latest.json"],
+      "endpoints": ["https://github.com/MSNsoftware/DuckBridge/releases/latest/download/latest.json"],
       "dialog": true
     }
   }
