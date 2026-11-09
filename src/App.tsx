@@ -17,11 +17,11 @@ type Settings = {
   adminToken: string;
 };
 
-type Tab = "dashboard" | "apitester" | "keys" | "models" | "logs" | "settings";
+type Tab = "dashboard" | "apitester" | "keys" | "models" | "logs" | "settings" | "about";
 
 const T = {
   en: {
-    dashboard: "Dashboard", apitester: "API Tester", keys: "API Keys", models: "Models", logs: "Logs", settings: "Settings",
+    dashboard: "Dashboard", apitester: "API Tester", keys: "API Keys", models: "Models", logs: "Logs", settings: "Settings", about: "About",
     running: "Running", stopped: "Stopped", start: "Start server", stop: "Stop", restart: "Restart",
     baseUrl: "Base URL", ready: "Paste this in Chatbox, Continue, or any OpenAI client.",
     copy: "Copy", copied: "Copied", health: "Health", metrics: "Metrics",
@@ -40,7 +40,7 @@ const T = {
     loading: "Loading...", proxyAdded: "Proxy added", saveFailed: "Save failed", startFailed: "Start failed", mode: "Mode",
   },
   fa: {
-    dashboard: "داشبورد", apitester: "تست API", keys: "کلیدها", models: "مدل‌ها", logs: "گزارش‌ها", settings: "تنظیمات",
+    dashboard: "داشبورد", apitester: "تست API", keys: "کلیدها", models: "مدل‌ها", logs: "گزارش‌ها", settings: "تنظیمات", about: "درباره ما",
     running: "در حال اجرا", stopped: "متوقف", start: "شروع سرور", stop: "توقف", restart: "راه‌اندازی مجدد",
     baseUrl: "آدرس پایه", ready: "این را در Chatbox یا Continue یا هر کلاینت OpenAI وارد کنید.",
     copy: "کپی", copied: "کپی شد", health: "وضعیت", metrics: "آمار",
@@ -307,6 +307,7 @@ export default function App() {
     keys: "M21 2l-2 2m-7.61 7.61A5.5 5.5 0 1 1 5.5 5.5L21 18l-4 4-2-2",
     models: "M12 2l8 4.5v9L12 20l-8-4.5v-9L12 2zM12 11L4 6.5M12 11l8-4.5M12 11v9",
     logs: "M4 6h16M4 12h16M4 18h10",
+    about: "M12 8h.01M11 12h1v4h1",
     settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z",
   };
 
@@ -338,7 +339,7 @@ export default function App() {
         <nav className="nav" aria-label="Primary">
           {(([
             ["dashboard", t.dashboard], ["apitester", t.apitester], ["keys", t.keys],
-            ["models", t.models], ["logs", t.logs], ["settings", t.settings],
+            ["models", t.models], ["logs", t.logs], ["settings", t.settings], ["about", t.about],
           ]) as [Tab, string][]).map(([k, label]) => (
             <button key={k} className={`navbtn ${tab === k ? "active" : ""}`} onClick={() => setTab(k)} aria-current={tab === k ? "page" : undefined}>
               <Icon d={icons[k]} />
@@ -565,6 +566,37 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                 </label>
                 {settings.adminToken === "your-super-secret-admin-token" && <p className="muted">Default token. Change it before enabling Require API key.</p>}
               </div>
+            </section>
+          )}
+
+          {tab === "about" && (
+            <section className="card stack about">
+              <div className="about-head">
+                <div className="about-name">
+                  <h2>DuckBridge</h2>
+                  <p className="muted">{lang === "fa" ? "درگاه محلی API برای Duck.ai" : "Local API gateway for Duck.ai"}</p>
+                </div>
+              </div>
+              <div className="about-grid">
+                <div className="about-item">
+                  <span>{lang === "fa" ? "برنامه‌ریزی و توسعه" : "Programmed by"}</span>
+                  <strong>Mohammad Sadegh Norouzian</strong>
+                </div>
+                <div className="about-item">
+                  <span>Telegram</span>
+                  <a href="https://t.me/MSNoroozian" target="_blank" rel="noreferrer">@MSNoroozian</a>
+                </div>
+                <div className="about-item">
+                  <span>Stack</span>
+                  <code dir="ltr">Tauri · React · FastAPI · Node.js</code>
+                </div>
+                <div className="about-item">
+                  <span>{lang === "fa" ? "نسخه" : "Version"}</span>
+                  <code dir="ltr">0.1.0</code>
+                </div>
+              </div>
+              <p className="muted">{lang === "fa" ? "اپ به‌عنوان «رباط API‌ساز» ساخته شده — نه چت‌اپ. سرور محلی روی 127.0.0.1:8765 اجرا می‌شود و یک API سازگار با OpenAI می‌سازد (چت، لیست مدل‌ها، تولید تصویر) تا هر اپ دیگر از آن استفاده کند." : "Built as an API-making sidecar — not a chat app. The local server runs on 127.0.0.1:8765 and serves an OpenAI-compatible API (chat, models, image generation) for other clients to use."}</p>
+              <p className="muted">{lang === "fa" ? "Unofficial — برای استفاده شخصی/آموزشی. وابسته به DuckDuckGo نیست." : "Unofficial — for personal/educational use. Not affiliated with DuckDuckGo."}</p>
             </section>
           )}
         </div>
