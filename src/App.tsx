@@ -36,7 +36,7 @@ const T = {
     endpoint: "Endpoint", body: "Body (JSON)", response: "Response",
     lastError: "Last error", noModels: "No models loaded. Start the server.",
     copiedUrl: "Base URL copied.", requests: "Requests", errors: "Errors", latency: "Latency", avg: "avg", ok: "ok", upstream: "upstream",
-    noKeys: "No keys. Set ADMIN_TOKEN in Settings and start the server with IGNPRE_API_KEYS=False, or leave it True for open access.",
+    noKeys: "No keys yet. Create one to start making API calls.",
     loading: "Loading...", proxyAdded: "Proxy added", saveFailed: "Save failed", startFailed: "Start failed", mode: "Mode",
   },
   fa: {
@@ -55,7 +55,7 @@ const T = {
     endpoint: "نقطه پایانی", body: "بدنه (JSON)", response: "پاسخ",
     lastError: "آخرین خطا", noModels: "مدلی بارگذاری نشده. سرور را شروع کنید.",
     copiedUrl: "آدرس پایه کپی شد.", requests: "درخواست‌ها", errors: "خطاها", latency: "تأخیر", avg: "میانگین", ok: "موفق", upstream: "آپ‌استریم",
-    noKeys: "کلیدی نیست. توکن ادمین را در تنظیمات بگذارید و IGNPRE_API_KEYS=False کنید، یا True بگذارید برای دسترسی آزاد.",
+    noKeys: "هنوز کلیدی ساخته نشده. برای شروع اول یک کلید بساز.",
     loading: "در حال بارگذاری...", proxyAdded: "پروکسی اضافه شد", saveFailed: "ذخیره ناموفق بود", startFailed: "شروع ناموفق بود", mode: "حالت",
   },
 } as const;
