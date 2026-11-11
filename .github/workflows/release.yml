@@ -28,6 +28,22 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Verify tag matches app version
+        shell: pwsh
+        run: |
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $tag = "${{ github.ref_name }}" -replace '^v',''
+          if ($conf.version -ne $tag) { throw "tag $tag does not match app version $($conf.version)" }
+      - name: Generate updater manifest
+        shell: pwsh
+        run: |
+          $installer = (Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1).FullName
+          node scripts/make-updater-json.mjs --target windows --arch x86_64 --tag "${{ github.ref_name }}" --installer $installer
+      - name: Upload updater manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-manifest-windows
+          path: latest-windows-x86_64.json
       - name: Upload Windows bundle
         uses: actions/upload-artifact@v4
         with:
@@ -60,6 +76,20 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Verify tag matches app version
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then echo "tag $tag does not match app version $version"; exit 1; fi
+      - name: Generate updater manifest
+        run: |
+          installer=$(ls src-tauri/target/release/bundle/appimage/*.AppImage | head -n 1)
+          node scripts/make-updater-json.mjs --target linux --arch x86_64 --tag "$GITHUB_REF_NAME" --installer "$installer"
+      - name: Upload updater manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-manifest-linux
+          path: latest-linux-x86_64.json
       - name: Upload Linux bundle
         uses: actions/upload-artifact@v4
         with:
@@ -92,6 +122,8 @@ jobs:
             bundle/**/*.exe
             bundle/**/*.AppImage
             bundle/**/*.deb
+            bundle/**/latest-windows-x86_64.json
+            bundle/**/latest-linux-x86_64.json
           draft: false
           prerelease: false
         env:
