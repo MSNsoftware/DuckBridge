@@ -27,6 +27,10 @@ import time
 import requests
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Runtime state directory (key db, .env, challenge file). The desktop app sets
+# DATA_DIR because the install directory is not always writable.
+DATA_DIR = os.getenv("DATA_DIR") or HERE
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # ``solve()`` writes the challenge to a fixed path, so concurrent callers must not overlap.
 _SOLVE_LOCK = threading.Lock()
@@ -256,7 +260,7 @@ class DuckAI:
         return base64.b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8", "replace")
 
     def solve(self, js_source: str) -> dict:
-        path = os.path.join(HERE, "_challenge.js")
+        path = os.path.join(DATA_DIR, "_challenge.js")
         with _SOLVE_LOCK:
             with open(path, "w") as fh:
                 fh.write(js_source)

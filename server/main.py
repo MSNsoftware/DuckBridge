@@ -26,7 +26,16 @@ from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL,
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# HERE  = directory of this file (read-only: the install directory)
+# DATA  = writable directory for runtime state (key db, .env, challenge file).
+#         The desktop app passes DATA_DIR because an MSI install lives in
+#         "Program Files", which a normal user cannot write to.
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.getenv("DATA_DIR") or HERE
+os.makedirs(DATA_DIR, exist_ok=True)
+
 # Load environment variables from .env file
+load_dotenv(os.path.join(DATA_DIR, ".env"))
 load_dotenv()
 
 IGNPRE_API_KEYS = os.getenv("IGNPRE_API_KEYS")
@@ -77,7 +86,7 @@ def get_db_connection():
         return psycopg2.connect(DATABASE_URL, sslmode='require')
     else:
         logger.info("Connecting to SQLite.")
-        return sqlite3.connect("api_keys.db")
+        return sqlite3.connect(os.path.join(DATA_DIR, "api_keys.db"))
 
 # --- Initialize Database ---
 def init_db():
@@ -210,7 +219,7 @@ def _status_to_http(status) -> int:
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_html():
-    with open("website.html", "r", encoding="utf-8") as file:
+    with open(os.path.join(HERE, "website.html"), "r", encoding="utf-8") as file:
         html_content = file.read()
     return HTMLResponse(content=html_content)
 
