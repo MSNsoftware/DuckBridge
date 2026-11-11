@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./lib/ipc";
+
+declare const __APP_VERSION__: string;
 
 type ProxyEntry = { id: string; url: string; enabled: boolean };
 type Settings = {
@@ -322,7 +324,7 @@ export default function App() {
         <div className="brand">
           <span className="mark" aria-hidden="true">
             <svg viewBox="0 0 512 512" width="40" height="40" aria-hidden="true">
-              <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D64541"/><stop offset="1" stop-color="#8B1E1E"/></linearGradient><linearGradient id="beak" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#F2C14E"/><stop offset="1" stop-color="#D99A2B"/></linearGradient></defs>
+              <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#D64541"/><stop offset="1" stopColor="#8B1E1E"/></linearGradient><linearGradient id="beak" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#F2C14E"/><stop offset="1" stopColor="#D99A2B"/></linearGradient></defs>
               <rect width="512" height="512" rx="128" fill="url(#bg)"/>
               <circle cx="256" cy="244" r="172" fill="#ffffff" opacity="0.10"/>
               <g transform="translate(-379 -139) scale(5)">
@@ -597,7 +599,7 @@ client.chat.completions.create(model="gpt-6-luna", messages=[{"role":"user","con
                 </div>
                 <div className="about-item">
                   <span>{lang === "fa" ? "نسخه" : "Version"}</span>
-                  <code dir="ltr">0.1.0</code>
+                  <code dir="ltr">{__APP_VERSION__}</code>
                 </div>
               </div>
               <p className="muted bidi">{lang === "fa" ? "اپ به‌عنوان «رباط API‌ساز» ساخته شده — نه چت‌اپ. سرور محلی روی 127.0.0.1:8765 اجرا می‌شود و یک API سازگار با OpenAI می‌سازد (چت، لیست مدل‌ها، تولید تصویر) تا هر اپ دیگر از آن استفاده کند." : "Built as an API-making sidecar — not a chat app. The local server runs on 127.0.0.1:8765 and serves an OpenAI-compatible API (chat, models, image generation) for other clients to use."}</p>

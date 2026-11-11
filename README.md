@@ -616,6 +616,31 @@ Run the development application:
 npm run tauri dev
 ```
 
+### Run the UI in a browser (no Rust toolchain)
+
+The React UI can be driven in a plain browser without building the Tauri shell.
+A small dev-only control plane (`dev-control/server.mjs`) stands in for the
+Tauri `start_server` / `stop_server` / `get_logs` commands, so the dashboard,
+API tester, key management and logs all behave the same.
+
+In one terminal:
+
+```bash
+npm run dev:control
+```
+
+In a second terminal:
+
+```bash
+npm run dev
+```
+
+Then open <http://localhost:1420>. The control plane listens on
+`127.0.0.1:8766` and owns the FastAPI sidecar on `127.0.0.1:8765`.
+
+Inside the Tauri app nothing changes: `src/lib/ipc.ts` detects the Tauri
+runtime and forwards every command to Rust, so the desktop build is unaffected.
+
 Build release bundles:
 
 ```bash

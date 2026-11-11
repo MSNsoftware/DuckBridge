@@ -12,5 +12,8 @@ server/api_keys.db
 
 .tauri_keys.txt
 .tauri_keys.txt.pub
+.tauri_signing_password
+
+dev-control/settings.json
 
 api_keys.db
