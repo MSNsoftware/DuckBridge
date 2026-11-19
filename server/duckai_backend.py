@@ -360,14 +360,14 @@ class DuckAI:
         proof["meta"] = meta
         return b64_json(proof)
 
-    def chat(self, prompt: str, model: str = DEFAULT_MODEL, tools: bool = False):
+    def chat(self, prompt: str, model: str = DEFAULT_MODEL, tools: bool = False, delegate_image: bool = False):
         body = {
             "model": model,
             "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
             "canUseTools": tools,
             "reasoningEffort": "none",
             "canUseApproxLocation": None,
-            "canDelegateImageGeneration": None,
+            "canDelegateImageGeneration": True if delegate_image else None,
             "canShowGreeting": False,
         }
         headers = {
@@ -391,7 +391,7 @@ class DuckAI:
             if isinstance(msg, str) and msg:
                 yield msg
 
-    def chat_events(self, prompt: str, model: str = DEFAULT_MODEL, retries: int = 4):
+    def chat_events(self, prompt: str, model: str = DEFAULT_MODEL, retries: int = 4, tools: bool = False, delegate_image: bool = False):
         """Yield raw SSE events (dicts) from duck.ai with optimistic token reuse for low latency."""
         global _CACHED_FE_VERSION, _CACHED_JSA, _CACHED_TS, _CACHED_PROXY_TAG
         real_model = resolve_model(model)
@@ -407,7 +407,7 @@ class DuckAI:
             self.fe_version = _CACHED_FE_VERSION
             self.jsa = _CACHED_JSA
             try:
-                test_r = self.chat(prompt, real_model)
+                test_r = self.chat(prompt, real_model, tools=tools, delegate_image=delegate_image)
                 if test_r.status_code == 200:
                     r = test_r
                     _CACHED_TS = now
@@ -425,7 +425,7 @@ class DuckAI:
                     _CACHED_JSA = self.jsa
                     _CACHED_TS = time.time()
                     _CACHED_PROXY_TAG = self.proxy_tag
-                r = self.chat(prompt, real_model)
+                r = self.chat(prompt, real_model, tools=tools, delegate_image=delegate_image)
                 if r.status_code == 200:
                     break
                 status = r.status_code
@@ -463,8 +463,7 @@ class DuckAI:
         in a ui-component SSE frame."""
         # Only Luna models have the native GenerateImage tool.
         image_model = "gpt-6-luna"
-        first = None
-        for ev in self.chat_events(prompt, model=image_model, retries=retries):
+        for ev in self.chat_events(prompt, model=image_model, retries=retries, tools=True, delegate_image=True):
             if (ev.get("role") == "ui-component" and ev.get("name") == "generate-image"
                     and isinstance(ev.get("data"), dict)
                     and ev["data"].get("status") == "success"

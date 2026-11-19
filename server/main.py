@@ -105,6 +105,9 @@ async def rate_limit_middleware(request: Request, call_next):
     if request.url.path in ("/health", "/models", "/v1/models", "/metrics"):
         return await call_next(request)
     ip = request.client.host if request.client else "unknown"
+    # Localhost / internal desktop clients (Cursor, Continue, Chatbox) never get throttled locally
+    if ip in ("127.0.0.1", "::1", "localhost", "testclient"):
+        return await call_next(request)
     now = time.time()
     with _rate_lock:
         hits = _rate_hits.get(ip, [])
@@ -335,6 +338,7 @@ IMAGE_ALIASES = {"gpt-image-1", "gpt-image-2", "dall-e-3", "image-generation", "
 
 @app.post("/v1/images/generations")
 async def generate_images(req: ImageGenerationRequest, api_key: str = Depends(get_api_key)):
+    global _cooldown_until
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(status_code=400, detail="prompt required")
     n = max(1, min(int(req.n or 1), 4))
@@ -342,37 +346,47 @@ async def generate_images(req: ImageGenerationRequest, api_key: str = Depends(ge
     full_prompt = f"Generate an image ({size_hint} orientation): {req.prompt.strip()}"
     t0 = time.time()
     data_items = []
-    for _ in range(n):
-        try:
-            img_bytes = await asyncio.to_thread(lambda: DuckAI().generate_image(full_prompt, model="gpt-6-luna"))
-        except DuckAIError as e:
+
+    async with _upstream_sem:
+        wait = _cooldown_until - time.time()
+        if wait > 0:
+            await asyncio.sleep(wait)
+
+        for _ in range(n):
+            try:
+                img_bytes = await asyncio.to_thread(lambda: DuckAI().generate_image(full_prompt, model="gpt-6-luna"))
+            except DuckAIError as e:
+                if e.status in (418, 429):
+                    _cooldown_until = time.time() + 10
+                err_type, friendly_msg = format_duckai_error(e)
+                with _metrics_lock:
+                    _metrics["total"] += 1
+                    _metrics["errors"] += 1
+                    _metrics["upstream_errors"] += 1
+                    _metrics["last_error"] = friendly_msg
+                raise HTTPException(status_code=_status_to_http(e.status), detail=friendly_msg)
+            except Exception as e:
+                logger.exception("image gen failed")
+                err_type, friendly_msg = format_duckai_error(e)
+                with _metrics_lock:
+                    _metrics["total"] += 1
+                    _metrics["errors"] += 1
+                    _metrics["last_error"] = friendly_msg
+                raise HTTPException(status_code=502, detail=friendly_msg)
+            img_id = uuid.uuid4().hex[:16]
             with _metrics_lock:
+                _image_cache[img_id] = img_bytes
+                _image_cache_order.append(img_id)
+                while img_id in _image_cache_order and len(_image_cache) > 50:
+                    old = _image_cache_order.popleft()
+                    _image_cache.pop(old, None)
                 _metrics["total"] += 1
-                _metrics["errors"] += 1
-                _metrics["upstream_errors"] += 1
-                _metrics["last_error"] = str(e)[:300]
-            raise HTTPException(status_code=_status_to_http(e.status), detail=str(e))
-        except Exception as e:
-            logger.exception("image gen failed")
-            with _metrics_lock:
-                _metrics["total"] += 1
-                _metrics["errors"] += 1
-                _metrics["last_error"] = str(e)[:300]
-            raise HTTPException(status_code=502, detail=str(e))
-        img_id = uuid.uuid4().hex[:16]
-        with _metrics_lock:
-            _image_cache[img_id] = img_bytes
-            _image_cache_order.append(img_id)
-            while img_id in _image_cache_order and len(_image_cache) > 50:
-                old = _image_cache_order.popleft()
-                _image_cache.pop(old, None)
-            _metrics["total"] += 1
-            _metrics["success"] += 1
-            _metrics["latencies"].append(time.time() - t0)
-        if (req.response_format or "url") == "b64_json":
-            data_items.append({"b64_json": base64.b64encode(img_bytes).decode(), "revised_prompt": req.prompt})
-        else:
-            data_items.append({"url": f"/v1/images/content/{img_id}", "revised_prompt": req.prompt})
+                _metrics["success"] += 1
+                _metrics["latencies"].append(time.time() - t0)
+            if (req.response_format or "url") == "b64_json":
+                data_items.append({"b64_json": base64.b64encode(img_bytes).decode(), "revised_prompt": req.prompt})
+            else:
+                data_items.append({"url": f"/v1/images/content/{img_id}", "revised_prompt": req.prompt})
     return {"created": int(time.time()), "data": data_items}
 
 @app.get("/v1/images/content/{img_id}")
