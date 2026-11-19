@@ -155,6 +155,9 @@ impl Default for AppSettings {
 struct ServerState {
     child: Option<Child>,
     logs: Vec<String>,
+    explicitly_stopped: bool,
+    restart_count: u32,
+    last_restart: Option<std::time::Instant>,
 }
 
 fn settings_path(app: &AppHandle) -> PathBuf {
@@ -571,7 +574,7 @@ fn save_settings_cmd(app: AppHandle, settings: AppSettings) {
 }
 
 #[tauri::command]
-fn server_status(state: tauri::State<'_, Arc<Mutex<ServerState>>>) -> bool {
+fn server_status(app: AppHandle, state: tauri::State<'_, Arc<Mutex<ServerState>>>) -> bool {
     let mut st = state.lock().unwrap();
     // `child.is_some()` is not enough: if the sidecar died (missing Python
     // deps, bad port, ...) the handle is still there and the UI would show a
@@ -588,6 +591,26 @@ fn server_status(state: tauri::State<'_, Arc<Mutex<ServerState>>>) -> bool {
                 chrono::Local::now().format("%H:%M:%S"),
                 code
             ));
+            // Supervisor auto-recovery: if not explicitly stopped, attempt restart
+            if !st.explicitly_stopped {
+                let now = std::time::Instant::now();
+                let can_restart = match st.last_restart {
+                    Some(last) => now.duration_since(last).as_secs() > 10 || st.restart_count < 3,
+                    None => true,
+                };
+                if can_restart {
+                    st.last_restart = Some(now);
+                    st.restart_count += 1;
+                    push_log(format!(
+                        "[{}] Supervisor: auto-restarting backend server (attempt {}/3)...",
+                        chrono::Local::now().format("%H:%M:%S"),
+                        st.restart_count
+                    ));
+                    drop(st);
+                    let _ = start_server(app, state);
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -859,6 +882,7 @@ fn start_server(
         chrono::Local::now().format("%H:%M:%S"),
         server_dir_candidates()
     ));
+    st.explicitly_stopped = false;
     st.child = Some(child);
     Ok(())
 }
@@ -866,6 +890,8 @@ fn start_server(
 #[tauri::command]
 fn stop_server(state: tauri::State<'_, Arc<Mutex<ServerState>>>) -> Result<(), String> {
     let mut st = state.lock().unwrap();
+    st.explicitly_stopped = true;
+    st.restart_count = 0;
     if let Some(mut child) = st.child.take() {
         let pid = child.id();
         let _ = child.kill();
@@ -961,7 +987,13 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
-        .manage(Arc::new(Mutex::new(ServerState { child: None, logs: vec![] })))
+        .manage(Arc::new(Mutex::new(ServerState {
+            child: None,
+            logs: vec![],
+            explicitly_stopped: false,
+            restart_count: 0,
+            last_restart: None,
+        })))
         .invoke_handler(tauri::generate_handler![
             get_settings, save_settings_cmd, server_status, get_logs, clear_logs, test_proxy, start_server, stop_server, server_dir_info
         ])

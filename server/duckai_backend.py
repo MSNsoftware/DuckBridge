@@ -446,6 +446,15 @@ class DuckAI:
                 ev = json.loads(chunk)
             except json.JSONDecodeError:
                 continue
+
+            # Detect embedded mid-stream error frames (e.g. action: "error", type: "ERR_BN_LIMIT")
+            if ev.get("action") == "error":
+                err_status = ev.get("status") or 418
+                err_type = ev.get("type") or "UPSTREAM_ERROR"
+                # Invalidate cached challenge token
+                _CACHED_JSA = ""
+                raise DuckAIError(f"duck.ai stream error ({err_type})", status=err_status)
+
             yield ev
 
     def generate_image(self, prompt: str, model: str = "gpt-6-luna", retries: int = 4) -> bytes:

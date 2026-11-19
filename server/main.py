@@ -6,7 +6,6 @@ import time
 import json
 import os
 import shutil
-import sqlite3
 import logging
 import base64
 import uuid
@@ -18,7 +17,6 @@ from starlette.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from dotenv import load_dotenv
-import psycopg2
 
 from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt, fetch_models, fetch_models_full, get_max_chars_for_model
 
@@ -27,9 +25,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # HERE  = directory of this file (read-only: the install directory)
-# DATA  = writable directory for runtime state (key db, .env, challenge file).
-#         The desktop app passes DATA_DIR because an MSI install lives in
-#         "Program Files", which a normal user cannot write to.
+# DATA  = writable directory for runtime state (.env, runtime config).
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.getenv("DATA_DIR") or HERE
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -38,16 +34,14 @@ os.makedirs(DATA_DIR, exist_ok=True)
 load_dotenv(os.path.join(DATA_DIR, ".env"))
 load_dotenv()
 
-IGNPRE_API_KEYS = os.getenv("IGNPRE_API_KEYS")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
 PORT = int(os.getenv("PORT", "8765"))
 HOST = os.getenv("HOST", "127.0.0.1")
 # Rate limit: max requests per minute per IP (tunable)
 RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "60"))
 MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", "15000"))
 
-# --- In-memory metrics (no DB needed for local use) ---
+# --- In-memory metrics (100% in-memory, zero DB dependencies) ---
 _metrics = {"total": 0, "success": 0, "errors": 0, "upstream_errors": 0, "last_error": None, "latencies": deque(maxlen=200)}
 _metrics_lock = threading.Lock()
 _started_at = time.time()
@@ -62,76 +56,18 @@ _cooldown_until = 0.0
 _rate_hits: dict[str, list[float]] = {}
 _rate_lock = threading.Lock()
 
-# Determine and log the current mode
-if IGNPRE_API_KEYS == "True":
-    db_mode = "IGNPRE_API_KEYS"
-elif DATABASE_URL:
-    db_mode = "Postgres"
-else:
-    db_mode = "SQLite"
-logger.info("Database mode: %s", db_mode)
 logger.info("Bind: %s:%s | rate_limit=%s/min | max_prompt_chars=%s", HOST, PORT, RATE_LIMIT_PER_MIN, MAX_PROMPT_CHARS)
 
 node_bin = os.getenv("NODE_EXE") or shutil.which("node") or "node"
 if not (os.path.isabs(node_bin) and os.path.exists(node_bin)) and shutil.which(node_bin) is None:
     logger.warning("node is not on PATH — duck.ai challenge solver needs Node.js >= 18")
 
-# --- Database Connection Setup ---
-def _hash_key(k: str) -> str:
-    import hashlib
-    return hashlib.sha256(k.encode()).hexdigest()
-
-def get_db_connection():
-    if DATABASE_URL:
-        logger.info("Connecting to PostgreSQL.")
-        return psycopg2.connect(DATABASE_URL, sslmode='require')
-    else:
-        logger.info("Connecting to SQLite.")
-        return sqlite3.connect(os.path.join(DATA_DIR, "api_keys.db"))
-
-# --- Initialize Database ---
-def init_db():
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor()
-        if DATABASE_URL:
-            # PostgreSQL: table named openai_api_keys
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS openai_api_keys (
-                    id SERIAL PRIMARY KEY,
-                    key TEXT UNIQUE NOT NULL,
-                    description TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-        else:
-            # SQLite: table named openai_api_keys
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS openai_api_keys (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    key TEXT UNIQUE NOT NULL,
-                    description TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-        conn.commit()
-        logger.info("Database initialized successfully.")
-    finally:
-        conn.close()
-
-try:
-    if IGNPRE_API_KEYS != "True":
-        init_db()
-except Exception as e:
-    logger.warning("Optional DB init skipped: %s", e)
-
-# --- Dependency to Validate Admin Key (Open Local Access) ---
+# --- Open Local Access Auth Dependencies ---
 async def get_admin_key(authorization: Optional[str] = Header(None)):
     return "ok"
 
-# --- Dependency for API Key Validation (Open Local Access) ---
 async def get_api_key(authorization: Optional[str] = Header(None)):
-    # Local open access: accept any Bearer token or none, compatible with all clients (Chatbox, Cursor, Continue)
+    # Local open access: accept any Bearer token or none (Chatbox, Cursor, Continue)
     return "ok"
 
 # --- Pydantic Models ---
@@ -143,9 +79,6 @@ class ChatCompletionRequest(BaseModel):
     model: str = DEFAULT_MODEL
     messages: List[ChatMessage]
     stream: Optional[bool] = False
-
-class ApiKeyCreate(BaseModel):
-    description: Optional[str] = None
 
 class ImageGenerationRequest(BaseModel):
     model: Optional[str] = None
@@ -267,9 +200,9 @@ async def _ask_serialized(prompt: str, model: str):
 def format_duckai_error(e: Exception) -> tuple[str, str]:
     msg = str(e)
     status = getattr(e, "status", None)
-    if status == 429 or "429" in msg or "ERR_RATE_LIMIT" in msg:
+    if status == 429 or "429" in msg or "ERR_RATE_LIMIT" in msg or "ERR_BN_LIMIT" in msg:
         return "RATE_LIMIT", "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید (خطای ۴۲۹). لطفاً در تنظیمات پروکسی را فعال یا تغییر دهید."
-    if status == 418 or "418" in msg:
+    if status == 418 or "418" in msg or "ERR_CHALLENGE" in msg:
         return "BOT_BLOCK", "سیستم امنیتی داک‌داک‌گو موقتاً درخواست را محدود کرد (خطای ۴۱۸). چند دقیقه صبر کنید یا پروکسی را تغییر دهید."
     return "UPSTREAM_ERROR", f"خطای داک‌داک‌گو: {msg[:250]}"
 
@@ -449,74 +382,6 @@ async def get_image(img_id: str):
     if not data:
         raise HTTPException(status_code=404, detail="Image not found (expired - cache holds last 50)")
     return Response(content=data, media_type="image/jpeg")
-
-# --- API Key Management Endpoints ---
-@app.get("/api-keys", dependencies=[Depends(get_admin_key)])
-async def list_api_keys():
-    if IGNPRE_API_KEYS == "True":
-        return ""
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor()
-        if DATABASE_URL:
-            cursor.execute("SELECT id, key, description, created_at FROM openai_api_keys")
-            rows = cursor.fetchall()
-            keys = [{"id": r[0], "key": r[1], "description": r[2], "created_at": str(r[3])} for r in rows]
-        else:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, key, description, created_at FROM openai_api_keys")
-            rows = cursor.fetchall()
-            keys = [dict(row) for row in rows]
-    finally:
-        conn.close()
-    return {"api_keys": keys}
-
-@app.post("/api-keys", dependencies=[Depends(get_admin_key)])
-async def create_api_key_endpoint(api_key_create: ApiKeyCreate):
-    if IGNPRE_API_KEYS == "True":
-        return ""
-    import secrets
-    new_key = secrets.token_hex(16)
-    stored = _hash_key(new_key)
-    description = api_key_create.description
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor()
-        if DATABASE_URL:
-            cursor.execute("INSERT INTO openai_api_keys (key, description) VALUES (%s, %s)", (stored, description))
-        else:
-            cursor.execute("INSERT INTO openai_api_keys (key, description) VALUES (?, ?)", (stored, description))
-        conn.commit()
-        if DATABASE_URL:
-            cursor.execute("SELECT currval(pg_get_serial_sequence('openai_api_keys','id'))")
-            key_id = cursor.fetchone()[0]
-        else:
-            key_id = cursor.lastrowid
-    except Exception:
-        conn.close()
-        raise HTTPException(status_code=400, detail="API Key already exists")
-    finally:
-        conn.close()
-    return {"id": key_id, "key": new_key, "description": description}
-
-@app.delete("/api-keys/{key}", dependencies=[Depends(get_admin_key)])
-async def delete_api_key(key: str):
-    if IGNPRE_API_KEYS == "True":
-        return ""
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor()
-        if DATABASE_URL:
-            cursor.execute("DELETE FROM openai_api_keys WHERE key = %s OR key = %s", (_hash_key(key), key))
-        else:
-            cursor.execute("DELETE FROM openai_api_keys WHERE key = ? OR key = ?", (_hash_key(key), key))
-        conn.commit()
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="API Key not found")
-    finally:
-        conn.close()
-    return {"detail": "API Key deleted"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host=HOST, port=PORT)
