@@ -277,6 +277,18 @@ fn resolve_server_dir(candidates: &[PathBuf]) -> PathBuf {
 fn find_python() -> String {
     let mut candidates: Vec<String> = Vec::new();
 
+    // 0. Portable bundled Python next to executable or server directory
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            for sub in &["python", "resources/python", "_up_/python", "_up_/resources/python"] {
+                let p = parent.join(sub).join(if cfg!(target_os = "windows") { "python.exe" } else { "bin/python3" });
+                if p.exists() {
+                    candidates.push(p.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+
     #[cfg(target_os = "windows")]
     {
         // 1. Scan %LOCALAPPDATA%\Programs\Python\Python3*
@@ -607,7 +619,7 @@ fn server_status(app: AppHandle, state: tauri::State<'_, Arc<Mutex<ServerState>>
                         st.restart_count
                     ));
                     drop(st);
-                    let _ = start_server(app, state);
+                    let _ = do_start(&app, &state);
                     return true;
                 }
             }
@@ -679,10 +691,22 @@ async fn test_proxy(_app: AppHandle, url: String) -> Result<String, String> {
     }
 }
 
-#[tauri::command]
-fn start_server(
-    app: AppHandle,
-    state: tauri::State<'_, Arc<Mutex<ServerState>>>,
+fn do_stop(st_arc: &Arc<Mutex<ServerState>>) -> Result<(), String> {
+    let mut st = st_arc.lock().unwrap();
+    st.explicitly_stopped = true;
+    st.restart_count = 0;
+    if let Some(mut child) = st.child.take() {
+        let pid = child.id();
+        let _ = child.kill();
+        let _ = child.wait();
+        push_log(format!("[{}] Server stopped pid {}", chrono::Local::now().format("%H:%M:%S"), pid));
+    }
+    Ok(())
+}
+
+fn do_start(
+    app: &AppHandle,
+    state: &Arc<Mutex<ServerState>>,
 ) -> Result<(), String> {
     let mut st = state.lock().unwrap();
     if st.child.is_some() {
@@ -699,9 +723,6 @@ fn start_server(
     }
 
     // --- preflight -------------------------------------------------------
-    // The sidecar dies instantly (and silently) when its Python packages are
-    // missing, which on a fresh machine is the difference between "works"
-    // and "the API never comes up".
     let python = find_python();
     ensure_python_deps(&python, &server_dir)?;
     let node_opt = find_node();
@@ -721,7 +742,7 @@ fn start_server(
     // jsdom powers the duck.ai challenge solver. It is installed into the
     // writable data directory (the install directory may be read-only) and
     // exposed to node through NODE_PATH.
-    let data_dir = data_dir(&app);
+    let data_dir = data_dir(app);
     let jsdom_home = data_dir.join("node_modules");
     let jsdom_present = server_dir.join("node_modules").join("jsdom").exists()
         || jsdom_home.join("jsdom").exists();
@@ -796,9 +817,7 @@ fn start_server(
     }
 
     // --- port selection --------------------------------------------------
-    // Another instance (or another app on the same port) may already hold the
-    // configured port. Move to the next free one instead of refusing to start.
-    let mut settings = load_settings(&app);
+    let mut settings = load_settings(app);
     match pick_free_port(&settings.host, settings.port) {
         Some(port) => {
             if port != settings.port {
@@ -810,7 +829,7 @@ fn start_server(
                     port
                 ));
                 settings.port = port;
-                save_settings(&app, &settings);
+                save_settings(app, &settings);
             }
         }
         None => {
@@ -888,17 +907,26 @@ fn start_server(
 }
 
 #[tauri::command]
+fn start_server(
+    app: AppHandle,
+    state: tauri::State<'_, Arc<Mutex<ServerState>>>,
+) -> Result<(), String> {
+    do_start(&app, &state)
+}
+
+#[tauri::command]
 fn stop_server(state: tauri::State<'_, Arc<Mutex<ServerState>>>) -> Result<(), String> {
-    let mut st = state.lock().unwrap();
-    st.explicitly_stopped = true;
-    st.restart_count = 0;
-    if let Some(mut child) = st.child.take() {
-        let pid = child.id();
-        let _ = child.kill();
-        let _ = child.wait();
-        push_log(format!("[{}] Server stopped pid {}", chrono::Local::now().format("%H:%M:%S"), pid));
-    }
-    Ok(())
+    do_stop(&state)
+}
+
+#[tauri::command]
+fn restart_server(
+    app: AppHandle,
+    state: tauri::State<'_, Arc<Mutex<ServerState>>>,
+) -> Result<(), String> {
+    let _ = do_stop(&state);
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    do_start(&app, &state)
 }
 
 #[cfg(test)]
@@ -995,14 +1023,15 @@ fn main() {
             last_restart: None,
         })))
         .invoke_handler(tauri::generate_handler![
-            get_settings, save_settings_cmd, server_status, get_logs, clear_logs, test_proxy, start_server, stop_server, server_dir_info
+            get_settings, save_settings_cmd, server_status, get_logs, clear_logs, test_proxy, start_server, stop_server, restart_server, server_dir_info
         ])
         .setup(|app| {
             let open_item = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
             let start_item = MenuItem::with_id(app, "start", "Start server", true, None::<&str>)?;
+            let restart_item = MenuItem::with_id(app, "restart", "Restart server", true, None::<&str>)?;
             let stop_item = MenuItem::with_id(app, "stop", "Stop server", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_item, &start_item, &stop_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&open_item, &start_item, &restart_item, &stop_item, &quit_item])?;
 
             let tray_icon = tauri::include_image!("icons/icon.png");
             let _tray = TrayIconBuilder::new()
@@ -1012,9 +1041,15 @@ fn main() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => { if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.unminimize(); let _ = w.set_focus(); } }
-                    "start" => { let st = app.state::<Arc<Mutex<ServerState>>>(); let _ = start_server(app.clone(), st); }
-                    "stop" => { let st = app.state::<Arc<Mutex<ServerState>>>(); let _ = stop_server(st); }
-                    "quit" => { let st = app.state::<Arc<Mutex<ServerState>>>(); let _ = stop_server(st); app.exit(0); }
+                    "start" => { let st = app.state::<Arc<Mutex<ServerState>>>(); let _ = do_start(app, &st); }
+                    "restart" => {
+                        let st = app.state::<Arc<Mutex<ServerState>>>();
+                        let _ = do_stop(&st);
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        let _ = do_start(app, &st);
+                    }
+                    "stop" => { let st = app.state::<Arc<Mutex<ServerState>>>(); let _ = do_stop(&st); }
+                    "quit" => { let st = app.state::<Arc<Mutex<ServerState>>>(); let _ = do_stop(&st); app.exit(0); }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -1042,7 +1077,7 @@ fn main() {
                     api.prevent_close();
                 } else {
                     let st = app.state::<Arc<Mutex<ServerState>>>();
-                    let _ = stop_server(st);
+                    let _ = do_stop(&st);
                 }
             }
         })

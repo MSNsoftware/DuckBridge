@@ -364,11 +364,19 @@ export default function App() {
   }, [loadAll]);
 
   async function save(next: Settings) {
+    const prev = settings;
     setSettings(next);
     applyTheme(next.theme);
     applyLang((next.language as any) || "en");
     try {
       await invoke("save_settings_cmd", { settings: next });
+      if (status && (next.host !== prev.host || next.port !== prev.port || next.proxyMode !== prev.proxyMode)) {
+        showToast(
+          next.language === "fa"
+            ? "تنظیمات ذخیره شد. برای اعمال، سرور را راه‌اندازی مجدد کنید."
+            : "Settings saved. Restart server to apply changes."
+        );
+      }
     } catch (e: any) {
       showToast(`${T[next.language as "en" | "fa"]?.saveFailed ?? "Save failed"}: ${e}`);
     }
@@ -396,6 +404,20 @@ export default function App() {
     }
     setBusy(false);
     setTimeout(loadAll, 800);
+  }
+
+  async function doRestart() {
+    setBusy(true);
+    showToast(lang === "fa" ? "در حال راه‌اندازی مجدد سرور..." : "Restarting server...");
+    try {
+      await invoke("restart_server");
+      showToast(lang === "fa" ? "سرور با موفقیت راه‌اندازی مجدد شد" : "Server restarted");
+    } catch (e: any) {
+      showToast(`${t.startFailed}: ${e}`);
+    } finally {
+      setBusy(false);
+      setTimeout(loadAll, 1200);
+    }
   }
 
   async function addProxy() {
@@ -648,12 +670,25 @@ export default function App() {
             </span>
           </div>
           <div className="side-actions">
-            <button className="btn primary sm" disabled={busy} onClick={doStart}>
-              {t.start}
-            </button>
-            <button className="btn sm" disabled={busy} onClick={doStop}>
-              {t.stop}
-            </button>
+            {!status ? (
+              <>
+                <button className="btn primary sm" disabled={busy} onClick={doStart}>
+                  {t.start}
+                </button>
+                <button className="btn sm" disabled={busy} onClick={doRestart}>
+                  {t.restart}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn sm" disabled={busy} onClick={doStop}>
+                  {t.stop}
+                </button>
+                <button className="btn primary sm" disabled={busy} onClick={doRestart}>
+                  {t.restart}
+                </button>
+              </>
+            )}
           </div>
           <div className="sidefoot-meta">Duck.ai · local only</div>
         </div>
@@ -929,6 +964,11 @@ export default function App() {
                 <label className="check">
                   <input type="checkbox" checked={settings.minimizeToTray} onChange={(e) => save({ ...settings, minimizeToTray: e.target.checked })} /> {t.minimize}
                 </label>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button className="btn sm" disabled={busy} onClick={doRestart}>
+                    {t.restart}
+                  </button>
+                </div>
               </div>
 
               <div className="card stack">

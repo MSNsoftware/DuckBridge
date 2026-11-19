@@ -136,14 +136,15 @@ async def serve_html():
 
 @app.get("/health")
 async def health():
+    node_avail = bool(os.getenv("NODE_EXE") or shutil.which("node"))
     return {
         "status": "ok",
         "uptime_sec": int(time.time() - _started_at),
-        "node": shutil.which("node") is not None,
+        "node": node_avail,
         "models": len(SUPPORTED_MODELS),
         "default_model": DEFAULT_MODEL,
         "bind": f"{HOST}:{PORT}",
-        "auth_enabled": IGNPRE_API_KEYS != "True",
+        "auth_enabled": False,
         "admin_token_set": bool(ADMIN_TOKEN),
     }
 
