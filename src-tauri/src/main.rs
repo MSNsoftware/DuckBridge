@@ -1024,6 +1024,13 @@ fn main() {
                 })
                 .build(app)?;
 
+            let is_autostart = std::env::args().any(|a| a == "--autostart");
+            if is_autostart {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.hide();
+                }
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -1033,6 +1040,9 @@ fn main() {
                 if settings.minimize_to_tray {
                     let _ = window.hide();
                     api.prevent_close();
+                } else {
+                    let st = app.state::<Arc<Mutex<ServerState>>>();
+                    let _ = stop_server(st);
                 }
             }
         })

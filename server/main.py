@@ -95,8 +95,8 @@ app.add_middleware(
     allow_origins=["http://tauri.localhost", "http://localhost:*", "http://127.0.0.1:*", "https://tauri.localhost"],
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=False,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.middleware("http")
@@ -184,6 +184,15 @@ async def list_models(api_key: str = Depends(get_api_key)):
 @app.post("/v1/images/edits")
 async def images_edits(api_key: str = Depends(get_api_key)):
     raise HTTPException(status_code=501, detail="Image edits require Vision upload (not yet implemented on jsdom path). Text-to-image via /v1/images/generations works (gpt-6-luna).")
+
+# --- Embeddings Endpoint (Helpful guidance for Cursor, Continue, etc.) ---
+@app.post("/embeddings")
+@app.post("/v1/embeddings")
+async def embeddings(api_key: str = Depends(get_api_key)):
+    raise HTTPException(
+        status_code=501,
+        detail="DuckBridge connects to Duck.ai which provides chat and image models only. Text embeddings are not supported by Duck.ai. Please disable embeddings or configure an embedding provider (e.g. Ollama, OpenAI) in your client settings."
+    )
 
 # --- Chat Completion Endpoint ---
 async def _ask_serialized(prompt: str, model: str):
