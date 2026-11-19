@@ -3,7 +3,9 @@
 const fs = require('fs');
 const { JSDOM } = require('jsdom');
 
-const src = fs.readFileSync(process.argv[2], 'utf8');
+const src = (!process.argv[2] || process.argv[2] === '-')
+  ? fs.readFileSync(0, 'utf8')
+  : fs.readFileSync(process.argv[2], 'utf8');
 const UA = process.argv[3] || ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
   + '(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36');
 

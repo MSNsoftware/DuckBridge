@@ -167,12 +167,19 @@ def resolve_model(model: str | None) -> str:
     return model.strip()
 
 
+def normalize_proxy(url: str | None) -> str | None:
+    if not url:
+        return None
+    url = url.strip()
+    if url.startswith("socks5://"):
+        return "socks5h://" + url[len("socks5://"):]
+    return url
+
+
 def build_prompt(messages: list[dict] | list, max_chars: int = MAX_PROMPT_CHARS) -> str:
     """Fold OpenAI history into a single user turn (duck.ai is stateless).
-
-    system     -> "System instructions: ..."
-    history    -> "Conversation so far: ..." transcript
-    last user  -> verbatim tail
+    Keeps system instructions and the latest user prompt intact, trimming older
+    history turns cleanly at turn boundaries to protect code and JSON structure.
     """
     if not messages:
         return ""
@@ -183,30 +190,57 @@ def build_prompt(messages: list[dict] | list, max_chars: int = MAX_PROMPT_CHARS)
         else:  # pydantic model
             norm.append({"role": getattr(m, "role", "user"),
                          "content": getattr(m, "content", "") or ""})
-    last_user = ""
+
     system_parts: list[str] = []
-    history_parts: list[str] = []
+    history_turns: list[str] = []
+    last_user = ""
+
     for m in norm:
         role = (m.get("role") or "user").lower()
-        content = m.get("content") or ""
+        content = str(m.get("content") or "").strip()
+        if not content:
+            continue
         if role == "system":
-            system_parts.append(str(content))
+            system_parts.append(content)
         elif role == "user":
-            last_user = str(content)
+            if last_user:
+                history_turns.append(f"user: {last_user}")
+            last_user = content
         else:
-            history_parts.append(f"{role}: {content}")
+            history_turns.append(f"{role}: {content}")
+
+    sys_str = ("System instructions:\n" + "\n\n".join(system_parts)) if system_parts else ""
+    user_str = last_user
+
+    fixed_len = len(sys_str) + len(user_str) + 20
+    remaining_budget = max_chars - fixed_len
+
+    chosen_history: list[str] = []
+    if remaining_budget > 200:
+        for turn in reversed(history_turns):
+            turn_cost = len(turn) + 4
+            if turn_cost <= remaining_budget:
+                chosen_history.append(turn)
+                remaining_budget -= turn_cost
+            else:
+                break
+        chosen_history.reverse()
+
     parts: list[str] = []
-    if system_parts:
-        parts.append("System instructions:\n" + "\n\n".join(system_parts))
-    if history_parts:
-        parts.append("Conversation so far:\n" + "\n".join(history_parts))
-    if last_user:
-        parts.append(last_user)
+    if sys_str:
+        parts.append(sys_str)
+    if chosen_history:
+        parts.append("Conversation so far:\n" + "\n".join(chosen_history))
+    if user_str:
+        parts.append(user_str)
+
     prompt = "\n\n".join(parts).strip() or str(norm[-1].get("content", ""))
     if len(prompt) > max_chars:
-        # keep head + tail so instructions survive trimming
-        keep = max_chars // 2
-        prompt = prompt[:keep] + "\n\n[... trimmed ...]\n\n" + prompt[-keep:]
+        split_idx = prompt.rfind("\n", 0, max_chars - 50)
+        if split_idx > max_chars // 2:
+            prompt = prompt[:split_idx] + "\n\n[... remaining context trimmed ...]"
+        else:
+            prompt = prompt[:max_chars - 40] + "\n\n[... trimmed ...]"
     return prompt
 
 
@@ -236,6 +270,14 @@ class DuckAI:
         self.timeout = timeout
         self.s = requests.Session()
         self.s.headers.update({"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"})
+        # Configure normalized proxy (including socks5h:// for remote DNS)
+        http_p = normalize_proxy(os.getenv("HTTP_PROXY") or os.getenv("http_proxy"))
+        https_p = normalize_proxy(os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"))
+        if http_p or https_p:
+            self.s.proxies.update({
+                "http": http_p or https_p,
+                "https": https_p or http_p,
+            })
         self.fe_version = ""
         self.jsa = ""
 
@@ -260,13 +302,14 @@ class DuckAI:
         return base64.b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8", "replace")
 
     def solve(self, js_source: str) -> dict:
-        path = os.path.join(DATA_DIR, "_challenge.js")
+        # Pass challenge directly via stdin in memory to prevent disk race conditions and file locks
         with _SOLVE_LOCK:
-            with open(path, "w") as fh:
-                fh.write(js_source)
             out = subprocess.run(
-                ["node", os.path.join(HERE, "jsa_jsdom.js"), path, self.ua],
-                capture_output=True, text=True, timeout=90,
+                ["node", os.path.join(HERE, "jsa_jsdom.js"), "-", self.ua],
+                input=js_source,
+                capture_output=True,
+                text=True,
+                timeout=90,
             )
         if out.returncode != 0 or not out.stdout.strip():
             raise RuntimeError(f"challenge runner failed: {out.stderr[:400]}")

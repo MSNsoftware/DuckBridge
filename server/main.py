@@ -118,46 +118,20 @@ def init_db():
     finally:
         conn.close()
 
-if IGNPRE_API_KEYS != "True":
-    init_db()
-else:
-    logger.info("IGNPRE_API_KEYS is active; bypassing database initialization.")
+try:
+    if IGNPRE_API_KEYS != "True":
+        init_db()
+except Exception as e:
+    logger.warning("Optional DB init skipped: %s", e)
 
-# --- Dependency to Validate Admin Key ---
+# --- Dependency to Validate Admin Key (Open Local Access) ---
 async def get_admin_key(authorization: Optional[str] = Header(None)):
-    if IGNPRE_API_KEYS == "True":
-        return ""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid or missing Authorization header")
-    token = authorization.split(" ")[1]
-    if token != ADMIN_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
-    return token
+    return "ok"
 
-# --- Dependency for API Key Validation ---
+# --- Dependency for API Key Validation (Open Local Access) ---
 async def get_api_key(authorization: Optional[str] = Header(None)):
-    if IGNPRE_API_KEYS == "True":
-        return ""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid or missing Authorization header")
-    token = authorization.split(" ")[1]
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor()
-        token_hash = _hash_key(token)
-        if DATABASE_URL:
-            cursor.execute("SELECT id FROM openai_api_keys WHERE key = %s OR key = %s", (token_hash, token))
-        else:
-            cursor.execute("SELECT id FROM openai_api_keys WHERE key = ? OR key = ?", (token_hash, token))
-        result = cursor.fetchone()
-    finally:
-        conn.close()
-    if not result:
-        # admin token is also accepted for read-only discovery (/v1/models)
-        if token == ADMIN_TOKEN:
-            return token
-        raise HTTPException(status_code=401, detail="Invalid API Key")
-    return token
+    # Local open access: accept any Bearer token or none, compatible with all clients (Chatbox, Cursor, Continue)
+    return "ok"
 
 # --- Pydantic Models ---
 class ChatMessage(BaseModel):
@@ -293,6 +267,7 @@ async def _ask_serialized(prompt: str, model: str):
 @app.post("/v1/chat/completions")
 async def chat_completions(
     request: ChatCompletionRequest,
+    raw_request: Request,
     api_key: str = Depends(get_api_key)
 ):
     model = (request.model or DEFAULT_MODEL).strip()
@@ -306,41 +281,64 @@ async def chat_completions(
         raise HTTPException(status_code=400, detail="Empty prompt")
     t0 = time.time()
     if request.stream:
-        def duckai_streamer():
+        async def duckai_streamer():
+            stop_event = threading.Event()
+            token_q = asyncio.Queue(maxsize=30)
+            loop = asyncio.get_running_loop()
+            sentinel = object()
+
+            def producer():
+                try:
+                    for token in DuckAI().stream(prompt, model=model):
+                        if stop_event.is_set():
+                            break
+                        asyncio.run_coroutine_threadsafe(token_q.put(token), loop).result(timeout=15)
+                except Exception as ex:
+                    if not stop_event.is_set():
+                        asyncio.run_coroutine_threadsafe(token_q.put(ex), loop)
+                finally:
+                    asyncio.run_coroutine_threadsafe(token_q.put(sentinel), loop)
+
+            threading.Thread(target=producer, daemon=True).start()
+
             try:
-                for token in DuckAI().stream(prompt, model=model):
+                while True:
+                    if await raw_request.is_disconnected():
+                        logger.info("Client disconnected; aborting duck.ai stream")
+                        stop_event.set()
+                        break
+                    try:
+                        item = await asyncio.wait_for(token_q.get(), timeout=0.8)
+                    except asyncio.TimeoutError:
+                        continue
+                    if item is sentinel:
+                        break
+                    if isinstance(item, Exception):
+                        logger.warning("duck.ai stream error: %s", item)
+                        with _metrics_lock:
+                            _metrics["total"] += 1
+                            _metrics["errors"] += 1
+                            _metrics["upstream_errors"] += 1
+                            _metrics["last_error"] = str(item)[:300]
+                        err = {"choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": "error"}], "error": str(item)}
+                        yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
+                        break
                     chunk = {
                         "id": f"chatcmpl-{int(time.time())}",
                         "object": "chat.completion.chunk",
                         "created": int(time.time()),
                         "model": model,
-                        "choices": [{"index": 0, "delta": {"content": token}, "finish_reason": None}],
+                        "choices": [{"index": 0, "delta": {"content": item}, "finish_reason": None}],
                     }
                     yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
                 with _metrics_lock:
                     _metrics["total"] += 1
                     _metrics["success"] += 1
                     _metrics["latencies"].append(time.time() - t0)
-            except DuckAIError as e:
-                logger.warning("duck.ai error (stream): %s", e)
-                with _metrics_lock:
-                    _metrics["total"] += 1
-                    _metrics["errors"] += 1
-                    _metrics["upstream_errors"] += 1
-                    _metrics["last_error"] = str(e)[:300]
-                err = {"choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": "error"}],
-                       "error": str(e)}
-                yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
-            except Exception as e:
-                logger.exception("duck.ai stream failed")
-                with _metrics_lock:
-                    _metrics["total"] += 1
-                    _metrics["errors"] += 1
-                    _metrics["last_error"] = str(e)[:300]
-                err = {"choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": "error"}],
-                       "error": str(e)}
-                yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
+            finally:
+                stop_event.set()
             yield "data: [DONE]\n\n"
+
         return StreamingResponse(duckai_streamer(), media_type="text/event-stream")
     else:
         try:

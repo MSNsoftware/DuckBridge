@@ -14,9 +14,92 @@ use tauri::{
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 #[cfg(windows)]
-fn assign_to_job(_child: &Child) {
-    // Job Object via winapi was complex to wire correctly; current stop_server kill on Quit
-    // already cleans the sidecar on normal exit. Full Job Object integration is deferred.
+fn assign_to_job(child: &Child) {
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::OnceLock;
+
+    type HANDLE = *mut std::ffi::c_void;
+    type BOOL = i32;
+    type DWORD = u32;
+
+    #[repr(C)]
+    struct JOBOBJECT_BASIC_LIMIT_INFORMATION {
+        per_process_user_time_limit: i64,
+        per_job_user_time_limit: i64,
+        limit_flags: DWORD,
+        minimum_working_set_size: usize,
+        maximum_working_set_size: usize,
+        active_process_limit: DWORD,
+        affinity: usize,
+        priority_class: DWORD,
+        scheduling_class: DWORD,
+    }
+
+    #[repr(C)]
+    struct IO_COUNTERS {
+        read_operation_count: u64,
+        write_operation_count: u64,
+        other_operation_count: u64,
+        read_transfer_count: u64,
+        write_transfer_count: u64,
+        other_transfer_count: u64,
+    }
+
+    #[repr(C)]
+    struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+        basic_limit_information: JOBOBJECT_BASIC_LIMIT_INFORMATION,
+        io_info: IO_COUNTERS,
+        process_memory_limit: usize,
+        job_memory_limit: usize,
+        peak_process_memory_limit: usize,
+        peak_job_memory_limit: usize,
+    }
+
+    const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: DWORD = 0x00002000;
+    const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION: DWORD = 9;
+
+    extern "system" {
+        fn CreateJobObjectW(lpJobAttributes: *mut std::ffi::c_void, lpName: *const u16) -> HANDLE;
+        fn SetInformationJobObject(
+            hJob: HANDLE,
+            JobObjectInformationClass: DWORD,
+            lpJobObjectInformation: *const std::ffi::c_void,
+            cbJobObjectInformationLength: DWORD,
+        ) -> BOOL;
+        fn AssignProcessToJobObject(hJob: HANDLE, hProcess: HANDLE) -> BOOL;
+        fn CloseHandle(hObject: HANDLE) -> BOOL;
+    }
+
+    static GLOBAL_JOB: OnceLock<usize> = OnceLock::new();
+
+    let job_handle = GLOBAL_JOB.get_or_init(|| {
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null_mut(), std::ptr::null());
+            if job.is_null() {
+                return 0;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.basic_limit_information.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let ok = SetInformationJobObject(
+                job,
+                JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+                &info as *const _ as *const std::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as DWORD,
+            );
+            if ok == 0 {
+                CloseHandle(job);
+                return 0;
+            }
+            job as usize
+        }
+    });
+
+    if *job_handle != 0 {
+        unsafe {
+            let proc = child.as_raw_handle() as HANDLE;
+            AssignProcessToJobObject(*job_handle as HANDLE, proc);
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -24,6 +107,7 @@ fn assign_to_job(_child: &Child) {
 struct AppSettings {
     host: String,
     port: u16,
+    #[serde(default)]
     require_api_keys: bool,
     auto_start_server: bool,
     autostart: bool,
@@ -33,7 +117,12 @@ struct AppSettings {
     language: String,
     proxy_mode: String,
     proxy_list: Vec<ProxyEntry>,
+    #[serde(default = "default_token")]
     admin_token: String,
+}
+
+fn default_token() -> String {
+    "local-token".into()
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -566,7 +655,15 @@ fn start_server(
         // leave to OS env
     } else if settings.proxy_mode == "manual" {
         if let Some(p) = settings.proxy_list.iter().find(|p| p.enabled) {
-            cmd.env("HTTP_PROXY", &p.url).env("HTTPS_PROXY", &p.url).env("http_proxy", &p.url).env("https_proxy", &p.url);
+            let mut proxy_url = p.url.trim().to_string();
+            // Automatically upgrade socks5:// to socks5h:// to enforce remote DNS resolution through proxy
+            if proxy_url.starts_with("socks5://") {
+                proxy_url = format!("socks5h://{}", &proxy_url[9..]);
+            }
+            cmd.env("HTTP_PROXY", &proxy_url)
+                .env("HTTPS_PROXY", &proxy_url)
+                .env("http_proxy", &proxy_url)
+                .env("https_proxy", &proxy_url);
         }
     }
     let mut child = cmd.spawn()
