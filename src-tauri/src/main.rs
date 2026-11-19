@@ -151,6 +151,7 @@ impl Default for AppSettings {
     }
 }
 
+#[allow(dead_code)]
 struct ServerState {
     child: Option<Child>,
     logs: Vec<String>,
@@ -271,18 +272,83 @@ fn resolve_server_dir(candidates: &[PathBuf]) -> PathBuf {
 }
 
 fn find_python() -> String {
-    // try candidates
-    let candidates: Vec<&str> = if cfg!(target_os = "windows") {
-        vec!["python", "py"]
-    } else {
-        vec!["python3", "python"]
-    };
-    for cand in candidates {
-        if Command::new(cand).arg("--version").output().is_ok() {
-            return cand.to_string();
+    let mut candidates: Vec<String> = Vec::new();
+
+    #[cfg(target_os = "windows")]
+    {
+        // 1. Scan %LOCALAPPDATA%\Programs\Python\Python3*
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let py_dir = Path::new(&local_app_data).join("Programs").join("Python");
+            if let Ok(entries) = fs::read_dir(py_dir) {
+                let mut found_dirs: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+                found_dirs.sort();
+                found_dirs.reverse(); // prefer newer versions
+                for d in found_dirs {
+                    let exe = d.join("python.exe");
+                    if exe.exists() {
+                        candidates.push(exe.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+
+        // 2. Scan standard Program Files Python installs
+        for pf in &["PROGRAMFILES", "ProgramFiles(x86)"] {
+            if let Ok(dir) = std::env::var(pf) {
+                let py_base = Path::new(&dir).join("Python");
+                if let Ok(entries) = fs::read_dir(py_base) {
+                    for entry in entries.flatten() {
+                        let exe = entry.path().join("python.exe");
+                        if exe.exists() {
+                            candidates.push(exe.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        candidates.push("py".into());
+        candidates.push("python".into());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        candidates.push("python3".into());
+        candidates.push("python".into());
+    }
+
+    // Pass 1: Find a python where our required packages are ALREADY working
+    for cand in &candidates {
+        if !cand.to_lowercase().contains("inkscape") && python_deps_ok(cand) {
+            return cand.clone();
         }
     }
+
+    // Pass 2: Find a python with pip available to install requirements
+    for cand in &candidates {
+        if !cand.to_lowercase().contains("inkscape") && python_has_pip(cand) {
+            return cand.clone();
+        }
+    }
+
+    // Fallback: any working python interpreter
+    for cand in &candidates {
+        if !cand.to_lowercase().contains("inkscape") && Command::new(cand).arg("--version").output().is_ok() {
+            return cand.clone();
+        }
+    }
+
     if cfg!(target_os = "windows") { "python".to_string() } else { "python3".to_string() }
+}
+
+fn python_has_pip(python: &str) -> bool {
+    Command::new(python)
+        .args(["-m", "pip", "--version"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 /// First free TCP port at or after `preferred` (scans preferred..preferred+20).
@@ -299,7 +365,7 @@ fn pick_free_port(host: &str, preferred: u16) -> Option<u16> {
 }
 
 /// Every module `server/main.py` imports at module scope.
-const PYTHON_DEPS_CHECK: &str = "import uvicorn, fastapi, requests, dotenv, psycopg2, pydantic";
+const PYTHON_DEPS_CHECK: &str = "import uvicorn, fastapi, requests, dotenv, pydantic";
 
 fn python_deps_ok(python: &str) -> bool {
     Command::new(python)

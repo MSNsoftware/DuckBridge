@@ -2,6 +2,13 @@
 title DuckBridge Desktop
 cd /d "%~dp0"
 
+REM Prioritize user Python installations over embedded tools like Inkscape
+if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
+    set "PATH=%LOCALAPPDATA%\Programs\Python\Python311;%LOCALAPPDATA%\Programs\Python\Python311\Scripts;%PATH%"
+) else if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
+    set "PATH=%LOCALAPPDATA%\Programs\Python\Python313;%LOCALAPPDATA%\Programs\Python\Python313\Scripts;%PATH%"
+)
+
 echo ===================================================
 echo              DuckBridge Desktop Runner
 echo ===================================================
