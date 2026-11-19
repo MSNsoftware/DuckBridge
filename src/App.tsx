@@ -520,7 +520,7 @@ export default function App() {
     }
   }
 
-  // --- Latency Benchmark Runner ---
+  // --- Latency Benchmark Runner (Measures true Time-To-First-Token TTFT) ---
   async function runLatencyBenchmark() {
     if (testingLatencies || models.length === 0) return;
     setTestingLatencies(true);
@@ -535,11 +535,19 @@ export default function App() {
           body: JSON.stringify({
             model: m.id,
             messages: [{ role: "user", content: "hi" }],
-            stream: false,
+            stream: true,
           }),
         });
-        if (res.ok) {
-          results[m.id] = Math.round(performance.now() - t0);
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          // Read first token chunk to capture exact Time-To-First-Token (TTFT)
+          const { done, value } = await reader.read();
+          if (!done && value) {
+            results[m.id] = Math.round(performance.now() - t0);
+          } else {
+            results[m.id] = Math.round(performance.now() - t0);
+          }
+          await reader.cancel(); // Disconnect to stop downstream token generation
         } else {
           results[m.id] = -1; // error
         }

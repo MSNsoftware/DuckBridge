@@ -341,6 +341,73 @@ fn find_python() -> String {
     if cfg!(target_os = "windows") { "python".to_string() } else { "python3".to_string() }
 }
 
+fn find_node() -> Option<String> {
+    let mut candidates: Vec<String> = Vec::new();
+
+    #[cfg(target_os = "windows")]
+    {
+        // 1. Standard Program Files installs
+        for pf in &["PROGRAMFILES", "ProgramFiles(x86)"] {
+            if let Ok(dir) = std::env::var(pf) {
+                let node_exe = Path::new(&dir).join("nodejs").join("node.exe");
+                if node_exe.exists() {
+                    candidates.push(node_exe.to_string_lossy().to_string());
+                }
+            }
+        }
+
+        // 2. LocalAppData / User directory installs (NVM, Volta, fnm, Hermes)
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let hermes = Path::new(&local_app_data).join("hermes").join("node").join("node.exe");
+            if hermes.exists() {
+                candidates.push(hermes.to_string_lossy().to_string());
+            }
+            let programs = Path::new(&local_app_data).join("Programs").join("node").join("node.exe");
+            if programs.exists() {
+                candidates.push(programs.to_string_lossy().to_string());
+            }
+        }
+
+        if let Ok(app_data) = std::env::var("APPDATA") {
+            let nvm = Path::new(&app_data).join("nvm");
+            if let Ok(entries) = fs::read_dir(nvm) {
+                for entry in entries.flatten() {
+                    let exe = entry.path().join("node.exe");
+                    if exe.exists() {
+                        candidates.push(exe.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+
+        candidates.push("node.exe".into());
+        candidates.push("node".into());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        for p in &["/usr/local/bin/node", "/usr/bin/node", "/opt/homebrew/bin/node"] {
+            if Path::new(p).exists() {
+                candidates.push((*p).into());
+            }
+        }
+        candidates.push("node".into());
+    }
+
+    for cand in &candidates {
+        if let Ok(out) = Command::new(cand).arg("--version").output() {
+            if out.status.success() {
+                let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if ver.starts_with('v') {
+                    return Some(cand.clone());
+                }
+            }
+        }
+    }
+
+    None
+}
+
 fn python_has_pip(python: &str) -> bool {
     Command::new(python)
         .args(["-m", "pip", "--version"])
@@ -551,18 +618,41 @@ fn server_dir_info(app: AppHandle) -> String {
 }
 
 #[tauri::command]
-async fn test_proxy(app: AppHandle, url: String) -> Result<String, String> {
-    let s = load_settings(&app);
-    let target = format!("http://{}:{}/health", s.host, s.port);
-    let client = if url.is_empty() {
-        reqwest::Client::new()
+async fn test_proxy(_app: AppHandle, url: String) -> Result<String, String> {
+    let target = "https://duck.ai/";
+    let client = if url.trim().is_empty() {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(8))
+            .build()
+            .map_err(|e| e.to_string())?
     } else {
-        let proxy = reqwest::Proxy::all(&url).map_err(|e| e.to_string())?;
-        reqwest::Client::builder().proxy(proxy).build().map_err(|e| e.to_string())?
+        let mut proxy_str = url.trim().to_string();
+        if proxy_str.starts_with("socks5h://") {
+            proxy_str = format!("socks5://{}", &proxy_str[10..]);
+        }
+        let proxy = reqwest::Proxy::all(&proxy_str).map_err(|e| format!("Invalid proxy: {}", e))?;
+        reqwest::Client::builder()
+            .proxy(proxy)
+            .timeout(std::time::Duration::from_secs(8))
+            .build()
+            .map_err(|e| e.to_string())?
     };
-    match client.get(&target).timeout(std::time::Duration::from_secs(5)).send().await {
-        Ok(r) => Ok(format!("OK {} {}", r.status(), target)),
-        Err(e) => Err(format!("FAIL {} -> {}", target, e)),
+    let t0 = std::time::Instant::now();
+    match client.head(target).send().await {
+        Ok(r) => {
+            let elapsed = t0.elapsed().as_millis();
+            Ok(format!("OK (HTTP {} in {}ms)", r.status().as_u16(), elapsed))
+        }
+        Err(_) => {
+            // Fallback: try GET if HEAD was disallowed by cloudflare
+            match client.get(target).send().await {
+                Ok(r) => {
+                    let elapsed = t0.elapsed().as_millis();
+                    Ok(format!("OK (HTTP {} in {}ms)", r.status().as_u16(), elapsed))
+                }
+                Err(e) => Err(format!("Connection failed: {}", e)),
+            }
+        }
     }
 }
 
@@ -591,12 +681,20 @@ fn start_server(
     // and "the API never comes up".
     let python = find_python();
     ensure_python_deps(&python, &server_dir)?;
-    if Command::new("node").arg("--version").output().is_err() {
-        push_log(format!(
-            "[{}] Node.js was not found on PATH - the duck.ai challenge solver needs Node.js 18+, so chat requests will fail until it is installed.",
-            chrono::Local::now().format("%H:%M:%S")
-        ));
-    }
+    let node_opt = find_node();
+    let node_bin = match &node_opt {
+        Some(p) => {
+            push_log(format!("[{}] Node.js located at '{}'", chrono::Local::now().format("%H:%M:%S"), p));
+            p.clone()
+        }
+        None => {
+            push_log(format!(
+                "[{}] Node.js was not found on PATH or standard locations - the duck.ai challenge solver needs Node.js 18+, so chat requests will fail until it is installed.",
+                chrono::Local::now().format("%H:%M:%S")
+            ));
+            "node".to_string()
+        }
+    };
     // jsdom powers the duck.ai challenge solver. It is installed into the
     // writable data directory (the install directory may be read-only) and
     // exposed to node through NODE_PATH.
@@ -613,10 +711,21 @@ fn start_server(
                 "{\n  \"name\": \"duckbridge-runtime\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"dependencies\": { \"jsdom\": \"^30.1.3\" }\n}\n",
             );
         }
-        // On Windows `npm` is a .cmd shim, which CreateProcess cannot execute
-        // directly - it has to go through cmd.exe. The working directory is
-        // set instead of --prefix so no path quoting is needed.
-        let mut npm = if cfg!(target_os = "windows") {
+        // Use npm located next to node if available
+        let mut npm = if let Some(ref nb) = node_opt {
+            let direct_npm = Path::new(nb).parent().map(|p| p.join("npm.cmd")).filter(|p| p.exists());
+            if let Some(p) = direct_npm {
+                let mut c = Command::new("cmd");
+                c.arg("/C").arg(p);
+                c
+            } else if cfg!(target_os = "windows") {
+                let mut c = Command::new("cmd");
+                c.arg("/C").arg("npm");
+                c
+            } else {
+                Command::new("npm")
+            }
+        } else if cfg!(target_os = "windows") {
             let mut c = Command::new("cmd");
             c.arg("/C").arg("npm");
             c
@@ -707,6 +816,7 @@ fn start_server(
         .env("DATABASE_URL", "")
         // Runtime state lives in the writable data dir, not in the install dir.
         .env("DATA_DIR", &data_dir)
+        .env("NODE_EXE", &node_bin)
         .env("NODE_PATH", &jsdom_home)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

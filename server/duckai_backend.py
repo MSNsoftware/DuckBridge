@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import threading
 import time
@@ -328,10 +329,12 @@ class DuckAI:
         return base64.b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8", "replace")
 
     def solve(self, js_source: str) -> dict:
+        # Resolve node binary (supports explicit NODE_EXE env passed by Tauri launcher or portable bundle)
+        node_bin = os.getenv("NODE_EXE") or shutil.which("node") or "node"
         # Pass challenge directly via stdin in memory to prevent disk race conditions and file locks
         with _SOLVE_LOCK:
             out = subprocess.run(
-                ["node", os.path.join(HERE, "jsa_jsdom.js"), "-", self.ua],
+                [node_bin, os.path.join(HERE, "jsa_jsdom.js"), "-", self.ua],
                 input=js_source,
                 capture_output=True,
                 text=True,

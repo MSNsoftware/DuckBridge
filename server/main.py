@@ -72,7 +72,8 @@ else:
 logger.info("Database mode: %s", db_mode)
 logger.info("Bind: %s:%s | rate_limit=%s/min | max_prompt_chars=%s", HOST, PORT, RATE_LIMIT_PER_MIN, MAX_PROMPT_CHARS)
 
-if shutil.which("node") is None:
+node_bin = os.getenv("NODE_EXE") or shutil.which("node") or "node"
+if not (os.path.isabs(node_bin) and os.path.exists(node_bin)) and shutil.which(node_bin) is None:
     logger.warning("node is not on PATH — duck.ai challenge solver needs Node.js >= 18")
 
 # --- Database Connection Setup ---
