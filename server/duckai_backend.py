@@ -104,8 +104,26 @@ SUPPORTED_MODELS: list[str] = [
 
 DEFAULT_MODEL = "gpt-6-luna"
 
-# Duck.ai stateless single-turn ceiling is ~16k chars (upstream 429 above).
-MAX_PROMPT_CHARS = 15000
+# Duck.ai model-specific character limits for folded prompts.
+# Heavier reasoning/coding models have smaller upstream request envelopes.
+MODEL_MAX_CHARS: dict[str, int] = {
+    "gpt-6-luna": 14000,
+    "gpt-5.6-luna": 14000,
+    "claude-haiku-4-5": 13000,
+    "claude-haiku-5-5": 13000,
+    "mistral-small-2603": 15000,
+    "tinfoil/gemma4-31b": 15000,
+    "tinfoil/gpt-oss-120b": 14000,
+    "gpt-5.4-mini": 16000,
+    "gpt-5.4-nano": 16000,
+}
+
+# Duck.ai stateless single-turn default ceiling
+MAX_PROMPT_CHARS = 14000
+
+def get_max_chars_for_model(model: str | None) -> int:
+    real = resolve_model(model)
+    return MODEL_MAX_CHARS.get(real, MAX_PROMPT_CHARS)
 
 # --- Dynamic model catalog (GET /duckchat/v1/models) with local cache ---
 _MODELS_CACHE: list[str] | None = None
@@ -268,6 +286,7 @@ class DuckAIError(RuntimeError):
 _CACHED_FE_VERSION: str = ""
 _CACHED_JSA: str = ""
 _CACHED_TS: float = 0.0
+_CACHED_PROXY_TAG: str = ""
 _AUTH_LOCK = threading.Lock()
 
 class DuckAI:
@@ -279,6 +298,7 @@ class DuckAI:
         # Configure normalized proxy (including socks5h:// for remote DNS)
         http_p = normalize_proxy(os.getenv("HTTP_PROXY") or os.getenv("http_proxy"))
         https_p = normalize_proxy(os.getenv("HTTPS_PROXY") or os.getenv("https_proxy"))
+        self.proxy_tag = f"{http_p}|{https_p}"
         if http_p or https_p:
             self.s.proxies.update({
                 "http": http_p or https_p,
@@ -370,15 +390,17 @@ class DuckAI:
 
     def chat_events(self, prompt: str, model: str = DEFAULT_MODEL, retries: int = 4):
         """Yield raw SSE events (dicts) from duck.ai with optimistic token reuse for low latency."""
-        global _CACHED_FE_VERSION, _CACHED_JSA, _CACHED_TS
+        global _CACHED_FE_VERSION, _CACHED_JSA, _CACHED_TS, _CACHED_PROXY_TAG
         real_model = resolve_model(model)
         last = ""
         status = None
         r = None
 
-        # 1. Optimistic fast-path: try cached proof if recently solved (< 180s)
+        # 1. Optimistic fast-path: try cached proof if recently solved (< 180s) AND same proxy
         now = time.time()
-        if _CACHED_JSA and _CACHED_FE_VERSION and (now - _CACHED_TS < 180):
+        if (_CACHED_JSA and _CACHED_FE_VERSION
+                and _CACHED_PROXY_TAG == self.proxy_tag
+                and (now - _CACHED_TS < 180)):
             self.fe_version = _CACHED_FE_VERSION
             self.jsa = _CACHED_JSA
             try:
@@ -389,7 +411,7 @@ class DuckAI:
             except Exception:
                 pass
 
-        # 2. If cached proof was expired or rejected, refresh via full handshake
+        # 2. If cached proof was expired, proxy changed, or rejected, refresh via full handshake
         if r is None:
             for attempt in range(retries):
                 with _AUTH_LOCK:
@@ -399,6 +421,7 @@ class DuckAI:
                     _CACHED_FE_VERSION = self.fe_version
                     _CACHED_JSA = self.jsa
                     _CACHED_TS = time.time()
+                    _CACHED_PROXY_TAG = self.proxy_tag
                 r = self.chat(prompt, real_model)
                 if r.status_code == 200:
                     break

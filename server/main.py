@@ -20,7 +20,7 @@ import uvicorn
 from dotenv import load_dotenv
 import psycopg2
 
-from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt, fetch_models, fetch_models_full
+from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt, fetch_models, fetch_models_full, get_max_chars_for_model
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -285,16 +285,23 @@ async def chat_completions(
     total_len = sum(len(m.content or "") for m in request.messages)
     if total_len > 200000:
         raise HTTPException(status_code=400, detail="Request too large (max ~200KB content)")
-    prompt = build_prompt(request.messages, max_chars=MAX_PROMPT_CHARS)
+    max_chars = get_max_chars_for_model(model)
+    prompt = build_prompt(request.messages, max_chars=max_chars)
     if not prompt:
         raise HTTPException(status_code=400, detail="Empty prompt")
     t0 = time.time()
     if request.stream:
         async def duckai_streamer():
+            global _cooldown_until
             stop_event = threading.Event()
             token_q = asyncio.Queue(maxsize=30)
             loop = asyncio.get_running_loop()
             sentinel = object()
+
+            # Ensure cooldown after 418/429
+            wait = _cooldown_until - time.time()
+            if wait > 0:
+                await asyncio.sleep(wait)
 
             def producer():
                 try:
@@ -308,46 +315,49 @@ async def chat_completions(
                 finally:
                     asyncio.run_coroutine_threadsafe(token_q.put(sentinel), loop)
 
-            threading.Thread(target=producer, daemon=True).start()
+            async with _upstream_sem:
+                threading.Thread(target=producer, daemon=True).start()
 
-            try:
-                while True:
-                    if await raw_request.is_disconnected():
-                        logger.info("Client disconnected; aborting duck.ai stream")
-                        stop_event.set()
-                        break
-                    try:
-                        item = await asyncio.wait_for(token_q.get(), timeout=0.8)
-                    except asyncio.TimeoutError:
-                        continue
-                    if item is sentinel:
-                        break
-                    if isinstance(item, Exception):
-                        err_type, friendly_msg = format_duckai_error(item)
-                        logger.warning("duck.ai stream error [%s]: %s", err_type, item)
-                        with _metrics_lock:
-                            _metrics["total"] += 1
-                            _metrics["errors"] += 1
-                            _metrics["upstream_errors"] += 1
-                            _metrics["last_error"] = friendly_msg
-                        err = {"choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": "error"}], "error": friendly_msg}
-                        yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
-                        break
-                    chunk = {
-                        "id": f"chatcmpl-{int(time.time())}",
-                        "object": "chat.completion.chunk",
-                        "created": int(time.time()),
-                        "model": model,
-                        "choices": [{"index": 0, "delta": {"content": item}, "finish_reason": None}],
-                    }
-                    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-                with _metrics_lock:
-                    _metrics["total"] += 1
-                    _metrics["success"] += 1
-                    _metrics["latencies"].append(time.time() - t0)
-            finally:
-                stop_event.set()
-            yield "data: [DONE]\n\n"
+                try:
+                    while True:
+                        if await raw_request.is_disconnected():
+                            logger.info("Client disconnected; aborting duck.ai stream")
+                            stop_event.set()
+                            break
+                        try:
+                            item = await asyncio.wait_for(token_q.get(), timeout=0.8)
+                        except asyncio.TimeoutError:
+                            continue
+                        if item is sentinel:
+                            break
+                        if isinstance(item, Exception):
+                            if getattr(item, "status", None) in (418, 429):
+                                _cooldown_until = time.time() + 10
+                            err_type, friendly_msg = format_duckai_error(item)
+                            logger.warning("duck.ai stream error [%s]: %s", err_type, item)
+                            with _metrics_lock:
+                                _metrics["total"] += 1
+                                _metrics["errors"] += 1
+                                _metrics["upstream_errors"] += 1
+                                _metrics["last_error"] = friendly_msg
+                            err = {"choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": "error"}], "error": friendly_msg}
+                            yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
+                            break
+                        chunk = {
+                            "id": f"chatcmpl-{int(time.time())}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{"index": 0, "delta": {"content": item}, "finish_reason": None}],
+                        }
+                        yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                    with _metrics_lock:
+                        _metrics["total"] += 1
+                        _metrics["success"] += 1
+                        _metrics["latencies"].append(time.time() - t0)
+                finally:
+                    stop_event.set()
+                yield "data: [DONE]\n\n"
 
         return StreamingResponse(duckai_streamer(), media_type="text/event-stream")
     else:
