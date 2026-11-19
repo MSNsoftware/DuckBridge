@@ -264,6 +264,12 @@ class DuckAIError(RuntimeError):
         self.status = status
 
 
+# --- Cached Token & Handshake State ---
+_CACHED_FE_VERSION: str = ""
+_CACHED_JSA: str = ""
+_CACHED_TS: float = 0.0
+_AUTH_LOCK = threading.Lock()
+
 class DuckAI:
     def __init__(self, ua: str = UA, timeout: int = 60):
         self.ua = ua
@@ -278,8 +284,8 @@ class DuckAI:
                 "http": http_p or https_p,
                 "https": https_p or http_p,
             })
-        self.fe_version = ""
-        self.jsa = ""
+        self.fe_version = _CACHED_FE_VERSION
+        self.jsa = _CACHED_JSA
 
     def bootstrap(self) -> "DuckAI":
         r = self.s.get(BASE + "/", timeout=self.timeout)
@@ -363,23 +369,46 @@ class DuckAI:
                 yield msg
 
     def chat_events(self, prompt: str, model: str = DEFAULT_MODEL, retries: int = 4):
-        """Yield raw SSE events (dicts) from duck.ai."""
+        """Yield raw SSE events (dicts) from duck.ai with optimistic token reuse for low latency."""
+        global _CACHED_FE_VERSION, _CACHED_JSA, _CACHED_TS
         real_model = resolve_model(model)
         last = ""
         status = None
-        for attempt in range(retries):
-            self.bootstrap()
-            solved = self.solve(self.fetch_challenge())
-            self.jsa = self.build_proof(solved)
-            r = self.chat(prompt, real_model)
-            if r.status_code == 200:
-                break
-            status = r.status_code
-            last = f"HTTP {r.status_code}: {r.text[:200]}"
-            # 418 = DuckDuckGo's fraud score said no; a fresh challenge often clears it.
-            time.sleep(2 + attempt * 2)
-        else:
-            raise DuckAIError(f"chat failed after {retries} attempts: {last}", status=status)
+        r = None
+
+        # 1. Optimistic fast-path: try cached proof if recently solved (< 180s)
+        now = time.time()
+        if _CACHED_JSA and _CACHED_FE_VERSION and (now - _CACHED_TS < 180):
+            self.fe_version = _CACHED_FE_VERSION
+            self.jsa = _CACHED_JSA
+            try:
+                test_r = self.chat(prompt, real_model)
+                if test_r.status_code == 200:
+                    r = test_r
+                    _CACHED_TS = now
+            except Exception:
+                pass
+
+        # 2. If cached proof was expired or rejected, refresh via full handshake
+        if r is None:
+            for attempt in range(retries):
+                with _AUTH_LOCK:
+                    self.bootstrap()
+                    solved = self.solve(self.fetch_challenge())
+                    self.jsa = self.build_proof(solved)
+                    _CACHED_FE_VERSION = self.fe_version
+                    _CACHED_JSA = self.jsa
+                    _CACHED_TS = time.time()
+                r = self.chat(prompt, real_model)
+                if r.status_code == 200:
+                    break
+                status = r.status_code
+                last = f"HTTP {r.status_code}: {r.text[:200]}"
+                # Invalidate cache on failure
+                _CACHED_JSA = ""
+                time.sleep(1 + attempt * 2)
+            else:
+                raise DuckAIError(f"chat failed after {retries} attempts: {last}", status=status)
 
         for raw in r.iter_lines():
             if not raw or not raw.startswith(b"data: "):

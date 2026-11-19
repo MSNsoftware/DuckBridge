@@ -177,6 +177,22 @@ const T = {
   },
 } as const;
 
+function notifySystem(title: string, body: string) {
+  try {
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification(title, { body });
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((p) => {
+          if (p === "granted") new Notification(title, { body });
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
 async function copyText(text: string, feedback: (m: string) => void, okLabel = "Copied") {
   try {
     await navigator.clipboard.writeText(text);
@@ -415,6 +431,11 @@ export default function App() {
       if (!resp.ok) {
         const errText = await resp.text();
         setChatMessages([...newMsgs, { role: "assistant", content: `خطا (${resp.status}): ${errText}` }]);
+        if (resp.status === 429 || errText.includes("429") || errText.includes("سقف مصرف")) {
+          notifySystem("DuckBridge — سقف مصرف روزانه", "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید. لطفاً در تنظیمات پروکسی را فعال یا تغییر دهید.");
+        } else if (resp.status === 418 || errText.includes("418")) {
+          notifySystem("DuckBridge — محدودیت امنیتی داک‌داک‌گو", "درخواست موقتاً توسط داک‌داک‌گو متوقف شد. لطفاً پروکسی را تغییر دهید.");
+        }
         setChatLoading(false);
         return;
       }
@@ -444,6 +465,16 @@ export default function App() {
           if (trimmed.startsWith("data: ")) {
             try {
               const chunk = JSON.parse(trimmed.slice(6));
+              if (chunk.error) {
+                const errMsg = typeof chunk.error === "string" ? chunk.error : chunk.error.message || JSON.stringify(chunk.error);
+                accumulated += `\n⚠️ ${errMsg}`;
+                setChatMessages([...newMsgs, { role: "assistant", content: accumulated }]);
+                if (errMsg.includes("429") || errMsg.includes("سقف مصرف")) {
+                  notifySystem("DuckBridge — سقف مصرف روزانه", "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید. لطفاً در تنظیمات پروکسی را تغییر دهید.");
+                } else if (errMsg.includes("418")) {
+                  notifySystem("DuckBridge — محدودیت امنیتی داک‌داک‌گو", "درخواست موقتاً توسط داک‌داک‌گو متوقف شد. چند دقیقه صبر کنید یا پروکسی را تغییر دهید.");
+                }
+              }
               const delta = chunk.choices?.[0]?.delta?.content || "";
               accumulated += delta;
               setChatMessages([...newMsgs, { role: "assistant", content: accumulated }]);
@@ -675,8 +706,15 @@ export default function App() {
                   </div>
                 </div>
                 {metrics?.last_error && (
-                  <div className="notice">
-                    خطای اخیر: <code>{metrics.last_error}</code>
+                  <div className="notice" style={{ borderColor: metrics.last_error.includes("۴۲۹") || metrics.last_error.includes("۴۱۸") ? "var(--bad)" : "var(--border)" }}>
+                    <div className="row between" style={{ alignItems: "center", width: "100%" }}>
+                      <span><strong>وضعیت اتصال:</strong> {metrics.last_error}</span>
+                      {(metrics.last_error.includes("۴۲۹") || metrics.last_error.includes("۴۱۸") || metrics.last_error.includes("پروکسی")) && (
+                        <button className="btn sm primary" onClick={() => setTab("settings")}>
+                          تنظیمات پروکسی
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -263,6 +263,15 @@ async def _ask_serialized(prompt: str, model: str):
                 _cooldown_until = time.time() + 10
             raise
 
+def format_duckai_error(e: Exception) -> tuple[str, str]:
+    msg = str(e)
+    status = getattr(e, "status", None)
+    if status == 429 or "429" in msg or "ERR_RATE_LIMIT" in msg:
+        return "RATE_LIMIT", "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید (خطای ۴۲۹). لطفاً در تنظیمات پروکسی را فعال یا تغییر دهید."
+    if status == 418 or "418" in msg:
+        return "BOT_BLOCK", "سیستم امنیتی داک‌داک‌گو موقتاً درخواست را محدود کرد (خطای ۴۱۸). چند دقیقه صبر کنید یا پروکسی را تغییر دهید."
+    return "UPSTREAM_ERROR", f"خطای داک‌داک‌گو: {msg[:250]}"
+
 @app.post("/chat/completions")
 @app.post("/v1/chat/completions")
 async def chat_completions(
@@ -314,13 +323,14 @@ async def chat_completions(
                     if item is sentinel:
                         break
                     if isinstance(item, Exception):
-                        logger.warning("duck.ai stream error: %s", item)
+                        err_type, friendly_msg = format_duckai_error(item)
+                        logger.warning("duck.ai stream error [%s]: %s", err_type, item)
                         with _metrics_lock:
                             _metrics["total"] += 1
                             _metrics["errors"] += 1
                             _metrics["upstream_errors"] += 1
-                            _metrics["last_error"] = str(item)[:300]
-                        err = {"choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": "error"}], "error": str(item)}
+                            _metrics["last_error"] = friendly_msg
+                        err = {"choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": "error"}], "error": friendly_msg}
                         yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
                         break
                     chunk = {
@@ -348,19 +358,21 @@ async def chat_completions(
                 _metrics["success"] += 1
                 _metrics["latencies"].append(time.time() - t0)
         except DuckAIError as e:
+            err_type, friendly_msg = format_duckai_error(e)
             with _metrics_lock:
                 _metrics["total"] += 1
                 _metrics["errors"] += 1
                 _metrics["upstream_errors"] += 1
-                _metrics["last_error"] = str(e)[:300]
-            raise HTTPException(status_code=_status_to_http(e.status), detail=str(e))
+                _metrics["last_error"] = friendly_msg
+            raise HTTPException(status_code=_status_to_http(e.status), detail=friendly_msg)
         except Exception as e:
             logger.exception("duck.ai ask failed")
+            err_type, friendly_msg = format_duckai_error(e)
             with _metrics_lock:
                 _metrics["total"] += 1
                 _metrics["errors"] += 1
-                _metrics["last_error"] = str(e)[:300]
-            raise HTTPException(status_code=502, detail=str(e))
+                _metrics["last_error"] = friendly_msg
+            raise HTTPException(status_code=502, detail=friendly_msg)
         return {
             "id": f"chatcmpl-{int(time.time())}",
             "object": "chat.completion",
