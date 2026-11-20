@@ -116,9 +116,23 @@ async def rate_limit_middleware(request: Request, call_next):
         hits = _rate_hits.get(ip, [])
         hits = [t for t in hits if now - t < 60]
         if len(hits) >= RATE_LIMIT_PER_MIN:
-            return Response(content='{"detail":"Rate limit exceeded"}', status_code=429, media_type="application/json")
+            err_json = json.dumps({
+                "error": {
+                    "message": "Rate limit exceeded (too many requests per minute from this IP)",
+                    "type": "rate_limit_error",
+                    "code": 429
+                }
+            })
+            return Response(content=err_json, status_code=429, media_type="application/json")
         hits.append(now)
         _rate_hits[ip] = hits
+
+        # Evict stale/idle IPs to prevent memory leak over long uptime
+        if len(_rate_hits) > 100:
+            stale_ips = [k for k, v in _rate_hits.items() if not v or (now - v[-1] >= 60)]
+            for k in stale_ips:
+                _rate_hits.pop(k, None)
+
     response = await call_next(request)
     return response
 
@@ -220,7 +234,30 @@ def format_duckai_error(e: Exception) -> tuple[str, str]:
         return "RATE_LIMIT", "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید (خطای ۴۲۹). لطفاً در تنظیمات پروکسی را فعال یا تغییر دهید."
     if status == 418 or "418" in msg or "ERR_CHALLENGE" in msg:
         return "BOT_BLOCK", "سیستم امنیتی داک‌داک‌گو موقتاً درخواست را محدود کرد (خطای ۴۱۸). چند دقیقه صبر کنید یا پروکسی را تغییر دهید."
+    if "Cannot find module 'jsdom'" in msg or ("jsdom" in msg and "cannot find" in msg.lower()):
+        return "DEPENDENCY_ERROR", "ماژول jsdom برای Node.js نصب نیست. لطفاً در پوشه برنامه دستور npm install را اجرا کنید."
+    if "node" in msg.lower() and ("not found" in msg.lower() or "enoent" in msg.lower()):
+        return "DEPENDENCY_ERROR", "محیط اجرایی Node.js یافت نشد. برای حل چالش امنیتی Duck.ai نیاز به نصب Node.js نسخه ۱۸ یا بالاتر است."
     return "UPSTREAM_ERROR", f"خطای داک‌داک‌گو: {msg[:250]}"
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if isinstance(exc.detail, dict) and "error" in exc.detail:
+        err_body = exc.detail
+    else:
+        err_body = {
+            "error": {
+                "message": str(exc.detail),
+                "type": "invalid_request_error" if exc.status_code < 500 else "api_error",
+                "param": None,
+                "code": exc.status_code,
+            }
+        }
+    return Response(
+        content=json.dumps(err_body, ensure_ascii=False),
+        status_code=exc.status_code,
+        media_type="application/json",
+    )
 
 @app.post("/chat/completions")
 @app.post("/v1/chat/completions")
@@ -319,6 +356,15 @@ async def chat_completions(
                         }
                         yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
                     if not stream_failed and not stop_event.is_set():
+                        # Standard OpenAI SSE: emit terminal chunk with finish_reason: "stop" and delta: {}
+                        stop_chunk = {
+                            "id": f"chatcmpl-{int(time.time())}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                        }
+                        yield f"data: {json.dumps(stop_chunk, ensure_ascii=False)}\n\n"
                         with _metrics_lock:
                             _metrics["total"] += 1
                             _metrics["success"] += 1
@@ -343,7 +389,11 @@ async def chat_completions(
                 _metrics["errors"] += 1
                 _metrics["upstream_errors"] += 1
                 _metrics["last_error"] = friendly_msg
-            raise HTTPException(status_code=_status_to_http(e.status), detail=friendly_msg)
+            status_code = _status_to_http(e.status)
+            raise HTTPException(
+                status_code=status_code,
+                detail={"error": {"message": friendly_msg, "type": err_type.lower(), "code": status_code}}
+            )
         except Exception as e:
             logger.exception("duck.ai ask failed")
             err_type, friendly_msg = format_duckai_error(e)
@@ -351,7 +401,10 @@ async def chat_completions(
                 _metrics["total"] += 1
                 _metrics["errors"] += 1
                 _metrics["last_error"] = friendly_msg
-            raise HTTPException(status_code=502, detail=friendly_msg)
+            raise HTTPException(
+                status_code=502,
+                detail={"error": {"message": friendly_msg, "type": err_type.lower(), "code": 502}}
+            )
         return {
             "id": f"chatcmpl-{int(time.time())}",
             "object": "chat.completion",
