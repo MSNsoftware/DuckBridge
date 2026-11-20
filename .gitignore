@@ -17,3 +17,6 @@ server/api_keys.db
 dev-control/settings.json
 
 api_keys.db
+
+RELEASE_NOTES.md
+latest-*.json

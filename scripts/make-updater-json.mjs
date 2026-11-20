@@ -49,9 +49,16 @@ const signature = fs.readFileSync(sigPath, "utf8").trim();
 const repo = process.env.GITHUB_REPOSITORY || "MSNsoftware/DuckBridge";
 const url = `https://github.com/${repo}/releases/download/${tag}/${path.basename(installerPath)}`;
 
+let notes = `DuckBridge ${version}`;
+const releaseNotesPath = path.resolve("RELEASE_NOTES.md");
+if (fs.existsSync(releaseNotesPath)) {
+  const content = fs.readFileSync(releaseNotesPath, "utf8").trim();
+  if (content) notes = content;
+}
+
 const manifest = {
   version,
-  notes: `DuckBridge ${version}`,
+  notes,
   pub_date: new Date().toISOString(),
   url,
   signature,

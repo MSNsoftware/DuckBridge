@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-0BSD-brightgreen?style=for-the-badge)](LICENSE)
 
-**[دانلود آخرین نسخه (Releases)](https://github.com/MSNsoftware/DuckBridge/releases/latest) · [گزارش خطا یا پیشنهاد (Issues)](https://github.com/MSNsoftware/DuckBridge/issues) · [English Documentation](#-english)**
+**[دانلود آخرین نسخه (Releases)](https://github.com/MSNsoftware/DuckBridge/releases/latest) · [تاریخچه تغییرات و رفع باگ‌ها (Changelog)](CHANGELOG.md) · [گزارش خطا یا پیشنهاد (Issues)](https://github.com/MSNsoftware/DuckBridge/issues) · [English Documentation](#-english)**
 
 </div>
 
