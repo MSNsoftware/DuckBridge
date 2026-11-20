@@ -459,7 +459,7 @@ fn pick_free_port(host: &str, preferred: u16) -> Option<u16> {
 }
 
 /// Every module `server/main.py` imports at module scope.
-const PYTHON_DEPS_CHECK: &str = "import uvicorn, fastapi, requests, dotenv, pydantic";
+const PYTHON_DEPS_CHECK: &str = "import uvicorn, fastapi, requests, dotenv, pydantic, socks";
 
 fn python_deps_ok(python: &str) -> bool {
     Command::new(python)
@@ -493,8 +493,8 @@ fn ensure_python_deps(python: &str, server_dir: &Path) -> Result<(), String> {
         ]
     } else {
         vec![
-            vec!["-m", "pip", "install", "fastapi", "uvicorn", "requests", "python-dotenv", "psycopg2-binary"],
-            vec!["-m", "pip", "install", "--user", "fastapi", "uvicorn", "requests", "python-dotenv", "psycopg2-binary"],
+            vec!["-m", "pip", "install", "fastapi", "uvicorn", "requests", "python-dotenv", "pydantic", "pysocks"],
+            vec!["-m", "pip", "install", "--user", "fastapi", "uvicorn", "requests", "python-dotenv", "pydantic", "pysocks"],
         ]
     };
     let mut last_err = String::new();

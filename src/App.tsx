@@ -571,7 +571,7 @@ export default function App() {
         const json = await resp.json();
         const url = json.data?.[0]?.url;
         if (url) {
-          setGeneratedImg(`${baseUrl}${url}`);
+          setGeneratedImg(url.startsWith("http") ? url : `${baseUrl}${url}`);
         }
       }
     } catch (e: any) {

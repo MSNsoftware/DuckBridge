@@ -251,9 +251,21 @@ def build_prompt(messages: list[dict] | list, max_chars: int = MAX_PROMPT_CHARS)
     sys_str = ("System instructions:\n" + "\n\n".join(system_parts)) if system_parts else ""
     user_str = last_user
 
-    fixed_len = len(sys_str) + len(user_str) + 20
-    remaining_budget = max_chars - fixed_len
+    # Prioritize latest user prompt first to guarantee the AI always receives the user's question
+    if len(user_str) > max_chars - 80:
+        user_str = user_str[:max_chars - 100] + "\n\n[... user prompt trimmed ...]"
 
+    remaining_budget = max_chars - len(user_str) - 30
+
+    # Truncate system instructions if budget is exceeded, never clipping user prompt
+    if sys_str:
+        if len(sys_str) > remaining_budget:
+            sys_str = sys_str[:max(0, remaining_budget - 40)] + "\n[... system instructions trimmed ...]"
+            remaining_budget = 0
+        else:
+            remaining_budget -= len(sys_str) + 4
+
+    # Allocate remaining budget to history turns (newest first)
     chosen_history: list[str] = []
     if remaining_budget > 200:
         for turn in reversed(history_turns):
@@ -273,14 +285,7 @@ def build_prompt(messages: list[dict] | list, max_chars: int = MAX_PROMPT_CHARS)
     if user_str:
         parts.append(user_str)
 
-    prompt = "\n\n".join(parts).strip() or str(norm[-1].get("content", ""))
-    if len(prompt) > max_chars:
-        split_idx = prompt.rfind("\n", 0, max_chars - 50)
-        if split_idx > max_chars // 2:
-            prompt = prompt[:split_idx] + "\n\n[... remaining context trimmed ...]"
-        else:
-            prompt = prompt[:max_chars - 40] + "\n\n[... trimmed ...]"
-    return prompt
+    return "\n\n".join(parts).strip() or str(norm[-1].get("content", ""))
 
 
 def b64(data: bytes) -> str:
@@ -351,6 +356,9 @@ class DuckAI:
     def solve(self, js_source: str) -> dict:
         # Resolve node binary (supports explicit NODE_EXE env passed by Tauri launcher or portable bundle)
         node_bin = os.getenv("NODE_EXE") or shutil.which("node") or "node"
+        flags = 0
+        if os.name == "nt":
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
         # Pass challenge directly via stdin in memory to prevent disk race conditions and file locks
         with _SOLVE_LOCK:
             out = subprocess.run(
@@ -359,6 +367,7 @@ class DuckAI:
                 capture_output=True,
                 text=True,
                 timeout=90,
+                creationflags=flags,
             )
         if out.returncode != 0 or not out.stdout.strip():
             raise RuntimeError(f"challenge runner failed: {out.stderr[:400]}")

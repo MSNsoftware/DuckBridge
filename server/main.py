@@ -369,7 +369,11 @@ async def chat_completions(
 IMAGE_ALIASES = {"gpt-image-1", "gpt-image-2", "dall-e-3", "image-generation", "gpt-6-luna", "gpt-5.6-luna"}
 
 @app.post("/v1/images/generations")
-async def generate_images(req: ImageGenerationRequest, api_key: str = Depends(get_api_key)):
+async def generate_images(
+    req: ImageGenerationRequest,
+    raw_request: Request,
+    api_key: str = Depends(get_api_key)
+):
     global _cooldown_until
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(status_code=400, detail="prompt required")
@@ -378,6 +382,7 @@ async def generate_images(req: ImageGenerationRequest, api_key: str = Depends(ge
     full_prompt = f"Generate an image ({size_hint} orientation): {req.prompt.strip()}"
     t0 = time.time()
     data_items = []
+    base_url = str(raw_request.base_url).rstrip("/")
 
     async with _upstream_sem:
         wait = _cooldown_until - time.time()
@@ -418,7 +423,7 @@ async def generate_images(req: ImageGenerationRequest, api_key: str = Depends(ge
             if (req.response_format or "url") == "b64_json":
                 data_items.append({"b64_json": base64.b64encode(img_bytes).decode(), "revised_prompt": req.prompt})
             else:
-                data_items.append({"url": f"/v1/images/content/{img_id}", "revised_prompt": req.prompt})
+                data_items.append({"url": f"{base_url}/v1/images/content/{img_id}", "revised_prompt": req.prompt})
     return {"created": int(time.time()), "data": data_items}
 
 @app.get("/v1/images/content/{img_id}")
