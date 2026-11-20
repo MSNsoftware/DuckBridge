@@ -195,6 +195,25 @@ def normalize_proxy(url: str | None) -> str | None:
     return url
 
 
+def _extract_text(content) -> str:
+    if not content:
+        return ""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                if item.get("type") == "text" and item.get("text"):
+                    parts.append(str(item["text"]))
+                elif "text" in item:
+                    parts.append(str(item["text"]))
+        return "\n".join(parts).strip()
+    return str(content).strip()
+
+
 def build_prompt(messages: list[dict] | list, max_chars: int = MAX_PROMPT_CHARS) -> str:
     """Fold OpenAI history into a single user turn (duck.ai is stateless).
     Keeps system instructions and the latest user prompt intact, trimming older
@@ -205,10 +224,11 @@ def build_prompt(messages: list[dict] | list, max_chars: int = MAX_PROMPT_CHARS)
     norm: list[dict] = []
     for m in messages:
         if isinstance(m, dict):
-            norm.append(m)
+            norm.append({"role": m.get("role") or "user",
+                         "content": _extract_text(m.get("content"))})
         else:  # pydantic model
-            norm.append({"role": getattr(m, "role", "user"),
-                         "content": getattr(m, "content", "") or ""})
+            norm.append({"role": getattr(m, "role", "user") or "user",
+                         "content": _extract_text(getattr(m, "content", ""))})
 
     system_parts: list[str] = []
     history_turns: list[str] = []

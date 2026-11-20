@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union, Dict, Any
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 import asyncio
@@ -73,7 +73,10 @@ async def get_api_key(authorization: Optional[str] = Header(None)):
 # --- Pydantic Models ---
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: Optional[Union[str, List[Any]]] = ""
+
+    class Config:
+        extra = "allow"
 
 class ChatCompletionRequest(BaseModel):
     model: str = DEFAULT_MODEL
@@ -262,10 +265,12 @@ async def chat_completions(
                 finally:
                     asyncio.run_coroutine_threadsafe(token_q.put(sentinel), loop)
 
+            stream_failed = False
             async with _upstream_sem:
                 threading.Thread(target=producer, daemon=True).start()
 
                 try:
+                    idle_time = 0.0
                     while True:
                         if await raw_request.is_disconnected():
                             logger.info("Client disconnected; aborting duck.ai stream")
@@ -273,11 +278,26 @@ async def chat_completions(
                             break
                         try:
                             item = await asyncio.wait_for(token_q.get(), timeout=0.8)
+                            idle_time = 0.0
                         except asyncio.TimeoutError:
+                            idle_time += 0.8
+                            if idle_time >= 45.0:
+                                logger.warning("Stream idle timeout (45s silence); aborting duck.ai stream")
+                                stream_failed = True
+                                stop_event.set()
+                                err_msg = "پاسخ از داک‌داک‌گو پس از ۴۵ ثانیه دریافت نشد (تایم‌اوت عدم فعالیت)."
+                                with _metrics_lock:
+                                    _metrics["total"] += 1
+                                    _metrics["errors"] += 1
+                                    _metrics["last_error"] = err_msg
+                                err = {"choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": "error"}], "error": err_msg}
+                                yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
+                                break
                             continue
                         if item is sentinel:
                             break
                         if isinstance(item, Exception):
+                            stream_failed = True
                             if getattr(item, "status", None) in (418, 429):
                                 _cooldown_until = time.time() + 10
                             err_type, friendly_msg = format_duckai_error(item)
@@ -298,13 +318,15 @@ async def chat_completions(
                             "choices": [{"index": 0, "delta": {"content": item}, "finish_reason": None}],
                         }
                         yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-                    with _metrics_lock:
-                        _metrics["total"] += 1
-                        _metrics["success"] += 1
-                        _metrics["latencies"].append(time.time() - t0)
+                    if not stream_failed and not stop_event.is_set():
+                        with _metrics_lock:
+                            _metrics["total"] += 1
+                            _metrics["success"] += 1
+                            _metrics["latencies"].append(time.time() - t0)
                 finally:
                     stop_event.set()
-                yield "data: [DONE]\n\n"
+                if not stream_failed:
+                    yield "data: [DONE]\n\n"
 
         return StreamingResponse(duckai_streamer(), media_type="text/event-stream")
     else:
@@ -387,7 +409,7 @@ async def generate_images(req: ImageGenerationRequest, api_key: str = Depends(ge
             with _metrics_lock:
                 _image_cache[img_id] = img_bytes
                 _image_cache_order.append(img_id)
-                while img_id in _image_cache_order and len(_image_cache) > 50:
+                while len(_image_cache) > 50 and _image_cache_order:
                     old = _image_cache_order.popleft()
                     _image_cache.pop(old, None)
                 _metrics["total"] += 1
