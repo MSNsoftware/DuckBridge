@@ -102,6 +102,20 @@ fn assign_to_job(child: &Child) {
     }
 }
 
+/// Creates a standard Command configured with CREATE_NO_WINDOW on Windows
+/// to guarantee child processes run completely headless without flashing terminal consoles.
+#[inline]
+fn silent_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 struct AppSettings {
@@ -348,7 +362,7 @@ fn find_python() -> String {
 
     // Fallback: any working python interpreter
     for cand in &candidates {
-        if !cand.to_lowercase().contains("inkscape") && Command::new(cand).arg("--version").output().is_ok() {
+        if !cand.to_lowercase().contains("inkscape") && silent_command(cand).arg("--version").output().is_ok() {
             return cand.clone();
         }
     }
@@ -410,7 +424,7 @@ fn find_node() -> Option<String> {
     }
 
     for cand in &candidates {
-        if let Ok(out) = Command::new(cand).arg("--version").output() {
+        if let Ok(out) = silent_command(cand).arg("--version").output() {
             if out.status.success() {
                 let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
                 if ver.starts_with('v') {
@@ -424,7 +438,7 @@ fn find_node() -> Option<String> {
 }
 
 fn python_has_pip(python: &str) -> bool {
-    Command::new(python)
+    silent_command(python)
         .args(["-m", "pip", "--version"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -462,7 +476,7 @@ fn pick_free_port(host: &str, preferred: u16) -> Option<u16> {
 const PYTHON_DEPS_CHECK: &str = "import uvicorn, fastapi, requests, dotenv, pydantic, socks";
 
 fn python_deps_ok(python: &str) -> bool {
-    Command::new(python)
+    silent_command(python)
         .args(["-c", PYTHON_DEPS_CHECK])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -499,7 +513,7 @@ fn ensure_python_deps(python: &str, server_dir: &Path) -> Result<(), String> {
     };
     let mut last_err = String::new();
     for args in attempts {
-        let out = Command::new(python)
+        let out = silent_command(python)
             .args(&args)
             .current_dir(server_dir)
             .output()
@@ -771,22 +785,22 @@ fn do_start(
         let mut npm = if let Some(ref nb) = node_opt {
             let direct_npm = Path::new(nb).parent().map(|p| p.join("npm.cmd")).filter(|p| p.exists());
             if let Some(p) = direct_npm {
-                let mut c = Command::new("cmd");
+                let mut c = silent_command("cmd");
                 c.arg("/C").arg(p);
                 c
             } else if cfg!(target_os = "windows") {
-                let mut c = Command::new("cmd");
+                let mut c = silent_command("cmd");
                 c.arg("/C").arg("npm");
                 c
             } else {
-                Command::new("npm")
+                silent_command("npm")
             }
         } else if cfg!(target_os = "windows") {
-            let mut c = Command::new("cmd");
+            let mut c = silent_command("cmd");
             c.arg("/C").arg("npm");
             c
         } else {
-            Command::new("npm")
+            silent_command("npm")
         };
         // Capture the output instead of inheriting it: a GUI-subsystem app has
         // no console, and an inherited invalid handle makes npm fail instantly
@@ -858,7 +872,7 @@ fn do_start(
 
     let ignore = if settings.require_api_keys { "False" } else { "True" };
     write_server_dotenv(&data_dir, &settings);
-    let mut cmd = Command::new(&python);
+    let mut cmd = silent_command(&python);
     cmd.arg("-m").arg("uvicorn").arg("main:app")
         .arg("--host").arg(&settings.host)
         .arg("--port").arg(settings.port.to_string())

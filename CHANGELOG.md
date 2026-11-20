@@ -9,6 +9,7 @@
 <div dir="rtl">
 
 ### 🌐 یکپارچه‌سازی و رفع تداخل زبان‌های رابط کاربری (UI i18n & Localization)
+- **اجرای ۱۰۰٪ بی‌صدا و مخفی پروسه‌ها در ویندوز (Headless Execution):** تعمیم فلگ `CREATE_NO_WINDOW` به تمامی پروسه‌های فرزند شامل پایش و نصب پکیج‌های پایتون (pip) و نصب ماژول‌های نود (npm)، به‌طوری که هنگام اجرای اولیه برنامه دیگر هیچ پنجره یا ترمینال سیاه رنگی ظاهر و ناپدید نمی‌شود.
 - **جداسازی کامل دیکشنری‌های زبان:** برطرف شدن مشکل تداخل زبان انگلیسی و فارسی؛ هیچ متن هاردکدشده‌ی فارسی در محیط کاربری انگلیسی و هیچ متن انگلیسی غیرضروری در محیط فارسی نمایش داده نمی‌شود.
 - **ترجمه داینامیک پیام‌های خطا (`localizeError`):** خطاهای بازگشتی سرور محلی (نظیر سقف مصرف ۴۲۹، خطای امنیتی ۴۱۸، مفقود بودن پکیج jsdom یا node) به‌صورت هوشمند متناسب با زبان فعال برنامه ترجمه می‌شوند.
 - **رفع پیام اولیه محیط چت تست زنده:** پیام خوش‌آمدگویی و تست در حالت انگلیسی به‌طور خودکار انگلیسی و در حالت فارسی به‌طور کامل فارسی نمایش داده می‌شود.
@@ -20,6 +21,7 @@
 <div dir="ltr">
 
 ### 🌐 Complete UI i18n & Language Unification
+- **100% Headless Process Execution on Windows:** Enforced `CREATE_NO_WINDOW` flag across all child processes (pip dependency checks/installs, node checks, npm install), completely eliminating any flashing console/terminal windows on application startup.
 - **Zero Language Leakage:** Completely eliminated hardcoded Persian text appearing in English mode and untranslated English elements appearing in Persian mode.
 - **Dynamic Error Localization:** Added `localizeError` helper to dynamically translate backend errors (429 Rate Limit, 418 Bot Challenge, missing dependencies) according to the active UI language.
 - **Playground Chat Greeting:** The live chat test greeting now dynamically updates between Persian and English without requiring page reloads or persisting stale messages.
