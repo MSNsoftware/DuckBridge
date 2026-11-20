@@ -33,6 +33,9 @@ const T = {
     models: "Models",
     settings: "Settings & Logs",
     about: "About",
+    tagline: "Local fast gateway to use Duck.ai in your favorite clients",
+    subWordmark: "API Gateway",
+    sidefootLocalOnly: "Duck.ai · local only",
     running: "Running",
     stopped: "Stopped",
     start: "Start server",
@@ -43,6 +46,8 @@ const T = {
     copy: "Copy",
     copied: "Copied",
     copiedUrl: "Base URL copied.",
+    copyBaseUrl: "Copy Base URL",
+    copyUrl: "Copy URL",
     clientPresets: "Quick Client Setup",
     chatboxTitle: "Chatbox",
     chatboxDesc: "Settings > Model Provider > OpenAI API. Set API Host to Base URL and API Key to any text.",
@@ -57,6 +62,8 @@ const T = {
     avg: "avg",
     ok: "ok",
     upstream: "upstream",
+    connectionStatus: "Connection Status",
+    proxySettings: "Proxy Settings",
     chatTab: "Live Chat",
     imageTab: "Generate Image",
     selectModel: "Select Model",
@@ -64,9 +71,18 @@ const T = {
     send: "Send",
     thinking: "Thinking...",
     clearChat: "Clear Chat",
+    stopResponse: "Stop",
+    stopResponseTitle: "Stop generating response",
+    initialChatGreeting: "Hello! This is a live testing playground to verify your connection to Duck.ai. Send any message to receive a real-time response.",
+    responseStopped: "Response generation stopped.",
+    responseStoppedByUser: "[Response generation stopped by user]",
+    serverConnectionError: "Connection error to local server",
+    noResponseReceived: "No response received",
     imagePromptPlaceholder: "Describe an image to generate with Luna...",
+    sampleImagePrompt: "e.g. A serene mountain lake at sunrise, watercolor style",
     generate: "Generate Image",
     generating: "Generating...",
+    downloadFullImage: "Download / View Full Image",
     testLatency: "Test Latencies",
     testing: "Testing...",
     ms: "ms",
@@ -100,6 +116,19 @@ const T = {
     proxyAdded: "Proxy added",
     saveFailed: "Save failed",
     startFailed: "Start failed",
+    restartingServer: "Restarting server...",
+    serverRestarted: "Server restarted successfully",
+    settingsSavedRestart: "Settings saved. Restart server to apply changes.",
+    errorPrefix: "Error",
+    quotaExceededTitle: "DuckBridge — Daily Limit Exceeded",
+    quotaExceededBody: "Duck.ai daily quota reached for this IP (Error 429). Please configure or change proxy in Settings.",
+    botBlockedTitle: "DuckBridge — Bot Challenge Blocked",
+    botBlockedBody: "Duck.ai temporarily restricted requests (Error 418). Please wait a few minutes or switch proxy.",
+    aboutSubtitle: "Local API gateway for Duck.ai",
+    aboutAuthor: "Programmed by",
+    authorName: "Mohammad Sadegh Norouzian",
+    version: "Version",
+    aboutDesc: "DuckBridge is built as a local sidecar and API gateway. The server runs on 127.0.0.1:8765, providing an OpenAI-compatible API for chat completions, models listing, and image generation so tools like Chatbox, Cursor, and Continue can use it seamlessly for free.",
   },
   fa: {
     dashboard: "داشبورد",
@@ -107,6 +136,9 @@ const T = {
     models: "مدل‌ها",
     settings: "تنظیمات و لاگ",
     about: "درباره ما",
+    tagline: "دروازه محلی و پرسرعت برای استفاده از Duck.ai در کلاینت‌های دلخواه",
+    subWordmark: "درگاه API",
+    sidefootLocalOnly: "Duck.ai · فقط محلی",
     running: "در حال اجرا",
     stopped: "متوقف",
     start: "شروع سرور",
@@ -117,6 +149,8 @@ const T = {
     copy: "کپی",
     copied: "کپی شد",
     copiedUrl: "آدرس پایه کپی شد.",
+    copyBaseUrl: "کپی آدرس پایه",
+    copyUrl: "کپی آدرس",
     clientPresets: "راهنمای اتصال سریع کلاینت‌ها",
     chatboxTitle: "چت‌باکس (Chatbox)",
     chatboxDesc: "در تنظیمات Chatbox: ارائه‌دهنده را OpenAI انتخاب کنید، API Host را آدرس زیر و API Key را هر عبارتی بگذارید.",
@@ -131,6 +165,8 @@ const T = {
     avg: "میانگین",
     ok: "موفق",
     upstream: "آپ‌استریم",
+    connectionStatus: "وضعیت اتصال",
+    proxySettings: "تنظیمات پروکسی",
     chatTab: "چت زنده",
     imageTab: "تولید تصویر",
     selectModel: "انتخاب مدل",
@@ -138,9 +174,18 @@ const T = {
     send: "ارسال",
     thinking: "در حال پردازش...",
     clearChat: "پاک‌سازی چت",
+    stopResponse: "توقف",
+    stopResponseTitle: "توقف تولید پاسخ",
+    initialChatGreeting: "سلام! این یک محیط تست زنده برای اطمینان از سلامت اتصال به Duck.ai است. هر پیامی بفرستید تا پاسخ را در لحظه دریافت کنید.",
+    responseStopped: "تولید پاسخ متوقف شد.",
+    responseStoppedByUser: "[تولید پاسخ توسط کاربر متوقف شد]",
+    serverConnectionError: "خطای اتصال به سرور محلی",
+    noResponseReceived: "پاسخی دریافت نشد",
     imagePromptPlaceholder: "توصیف تصویری که می‌خواهید مدل Luna تولید کند...",
+    sampleImagePrompt: "مثلاً: منظره کوهستان و دریاچه در مه صبحگاهی، سبک آبرنگ",
     generate: "تولید تصویر",
     generating: "در حال تولید تصویر...",
+    downloadFullImage: "دانلود / مشاهده تصویر کامل",
     testLatency: "تست پینگ مدل‌ها",
     testing: "در حال تست...",
     ms: "میلی‌ثانیه",
@@ -174,8 +219,68 @@ const T = {
     proxyAdded: "پروکسی اضافه شد",
     saveFailed: "ذخیره ناموفق بود",
     startFailed: "شروع ناموفق بود",
+    restartingServer: "در حال راه‌اندازی مجدد سرور...",
+    serverRestarted: "سرور با موفقیت راه‌اندازی مجدد شد",
+    settingsSavedRestart: "تنظیمات ذخیره شد. برای اعمال، سرور را راه‌اندازی مجدد کنید.",
+    errorPrefix: "خطا",
+    quotaExceededTitle: "DuckBridge — سقف مصرف روزانه",
+    quotaExceededBody: "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید (خطای ۴۲۹). لطفاً در تنظیمات پروکسی را فعال یا تغییر دهید.",
+    botBlockedTitle: "DuckBridge — محدودیت امنیتی داک‌داک‌گو",
+    botBlockedBody: "سیستم امنیتی داک‌داک‌گو موقتاً درخواست را محدود کرد (خطای ۴۱۸). چند دقیقه صبر کنید یا پروکسی را تغییر دهید.",
+    aboutSubtitle: "درگاه محلی API برای Duck.ai",
+    aboutAuthor: "برنامه‌ریزی و توسعه",
+    authorName: "محمد صادق نوروزیان",
+    version: "نسخه",
+    aboutDesc: "DuckBridge به‌عنوان یک «سایدکار و دروازه محلی API» ساخته شده است. سرور محلی روی 127.0.0.1:8765 اجرا می‌شود و یک API استاندارد و سازگار با OpenAI برای گفت‌وگو، لیست مدل‌ها و تولید تصویر فراهم می‌کند تا ابزارهایی مانند Chatbox، Cursor و Continue بتوانند رایگان از آن استفاده کنند.",
   },
 } as const;
+
+function localizeError(err: string | null | undefined, lang: "en" | "fa"): string {
+  if (!err) return "";
+  const s = String(err);
+  if (lang === "fa") {
+    if (s.includes("429") || s.includes("RATE_LIMIT") || s.toLowerCase().includes("rate limit") || s.includes("سقف مصرف")) {
+      return "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید (خطای ۴۲۹). لطفاً در تنظیمات پروکسی را فعال یا تغییر دهید.";
+    }
+    if (s.includes("418") || s.includes("BOT_BLOCK") || s.toLowerCase().includes("bot protection") || s.includes("محدودیت امنیتی")) {
+      return "سیستم امنیتی داک‌داک‌گو موقتاً درخواست را محدود کرد (خطای ۴۱۸). چند دقیقه صبر کنید یا پروکسی را تغییر دهید.";
+    }
+    if (s.toLowerCase().includes("jsdom")) {
+      return "ماژول jsdom برای Node.js نصب نیست. لطفاً دستور npm install را اجرا کنید.";
+    }
+    if (s.toLowerCase().includes("node") && (s.toLowerCase().includes("not found") || s.toLowerCase().includes("enoent") || s.includes("محیط اجرایی"))) {
+      return "محیط اجرایی Node.js یافت نشد. برای حل چالش امنیتی Duck.ai نیاز به نصب Node.js نسخه ۱۸ یا بالاتر است.";
+    }
+    if (s.includes("45s") || s.includes("۴۵ ثانیه") || s.toLowerCase().includes("inactivity") || s.includes("عدم فعالیت")) {
+      return "پاسخ از داک‌داک‌گو پس از ۴۵ ثانیه دریافت نشد (تایم‌اوت عدم فعالیت).";
+    }
+    if (s.startsWith("Duck.ai error: ")) {
+      return `خطای داک‌داک‌گو: ${s.slice(15)}`;
+    }
+    return s;
+  } else {
+    // English
+    if (s.includes("سقف مصرف") || s.includes("۴۲۹") || s.includes("RATE_LIMIT") || (s.includes("429") && !s.includes("Duck.ai daily"))) {
+      return "Duck.ai daily rate limit reached for this IP (Error 429). Please configure or change proxy in settings.";
+    }
+    if (s.includes("سیستم امنیتی") || s.includes("۴۱۸") || s.includes("BOT_BLOCK") || (s.includes("418") && !s.includes("bot protection"))) {
+      return "Duck.ai bot protection triggered (Error 418). Please wait a few minutes or switch proxy.";
+    }
+    if (s.includes("ماژول jsdom")) {
+      return "Node.js module 'jsdom' is missing. Please run 'npm install' in the application directory.";
+    }
+    if (s.includes("محیط اجرایی Node.js")) {
+      return "Node.js executable was not found. Node.js 18+ is required to solve Duck.ai challenges.";
+    }
+    if (s.includes("عدم فعالیت") || s.includes("۴۵ ثانیه")) {
+      return "Duck.ai upstream stream timed out after 45s of inactivity.";
+    }
+    if (s.startsWith("خطای داک‌داک‌گو: ")) {
+      return `Duck.ai error: ${s.slice(17)}`;
+    }
+    return s;
+  }
+}
 
 function notifySystem(title: string, body: string) {
   try {
@@ -248,9 +353,7 @@ export default function App() {
   const abortCtrlRef = useRef<AbortController | null>(null);
   const [playSubTab, setPlaySubTab] = useState<"chat" | "image">("chat");
   const [selectedModel, setSelectedModel] = useState("gpt-6-luna");
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
-    { role: "assistant", content: "سلام! این یک محیط تست زنده برای اطمینان از سلامت اتصال به Duck.ai است. هر پیامی بفرستید تا پاسخ را در لحظه دریافت کنید." },
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [imagePrompt, setImagePrompt] = useState("");
@@ -260,6 +363,10 @@ export default function App() {
   const [testingLatencies, setTestingLatencies] = useState(false);
 
   const t = T[lang];
+  const displayMessages = useMemo(
+    () => (chatMessages.length === 0 ? [{ role: "assistant" as const, content: t.initialChatGreeting }] : chatMessages),
+    [chatMessages, t.initialChatGreeting]
+  );
   const baseUrl = `http://${settings.host}:${settings.port}`;
   const v1Url = `${baseUrl}/v1`;
 
@@ -382,9 +489,7 @@ export default function App() {
       await invoke("save_settings_cmd", { settings: next });
       if (status && (next.host !== prev.host || next.port !== prev.port || next.proxyMode !== prev.proxyMode)) {
         showToast(
-          next.language === "fa"
-            ? "تنظیمات ذخیره شد. برای اعمال، سرور را راه‌اندازی مجدد کنید."
-            : "Settings saved. Restart server to apply changes."
+          T[next.language as "en" | "fa"]?.settingsSavedRestart ?? t.settingsSavedRestart
         );
       }
     } catch (e: any) {
@@ -418,10 +523,10 @@ export default function App() {
 
   async function doRestart() {
     setBusy(true);
-    showToast(lang === "fa" ? "در حال راه‌اندازی مجدد سرور..." : "Restarting server...");
+    showToast(t.restartingServer);
     try {
       await invoke("restart_server");
-      showToast(lang === "fa" ? "سرور با موفقیت راه‌اندازی مجدد شد" : "Server restarted");
+      showToast(t.serverRestarted);
     } catch (e: any) {
       showToast(`${t.startFailed}: ${e}`);
     } finally {
@@ -487,11 +592,12 @@ export default function App() {
 
       if (!resp.ok) {
         const errText = await resp.text();
-        setChatMessages([...newMsgs, { role: "assistant", content: `خطا (${resp.status}): ${errText}` }]);
+        const localized = localizeError(errText, lang);
+        setChatMessages([...newMsgs, { role: "assistant", content: `${t.errorPrefix} (${resp.status}): ${localized}` }]);
         if (resp.status === 429 || errText.includes("429") || errText.includes("سقف مصرف")) {
-          notifySystem("DuckBridge — سقف مصرف روزانه", "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید. لطفاً در تنظیمات پروکسی را فعال یا تغییر دهید.");
+          notifySystem(t.quotaExceededTitle, t.quotaExceededBody);
         } else if (resp.status === 418 || errText.includes("418")) {
-          notifySystem("DuckBridge — محدودیت امنیتی داک‌داک‌گو", "درخواست موقتاً توسط داک‌داک‌گو متوقف شد. لطفاً پروکسی را تغییر دهید.");
+          notifySystem(t.botBlockedTitle, t.botBlockedBody);
         }
         setChatLoading(false);
         return;
@@ -500,7 +606,7 @@ export default function App() {
       const reader = resp.body?.getReader();
       if (!reader) {
         const json = await resp.json();
-        setChatMessages([...newMsgs, { role: "assistant", content: json.choices?.[0]?.message?.content || "پاسخی دریافت نشد" }]);
+        setChatMessages([...newMsgs, { role: "assistant", content: json.choices?.[0]?.message?.content || t.noResponseReceived }]);
         setChatLoading(false);
         return;
       }
@@ -522,13 +628,14 @@ export default function App() {
             try {
               const chunk = JSON.parse(trimmed.slice(6));
               if (chunk.error) {
-                const errMsg = typeof chunk.error === "string" ? chunk.error : chunk.error.message || JSON.stringify(chunk.error);
+                const rawErr = typeof chunk.error === "string" ? chunk.error : chunk.error.message || JSON.stringify(chunk.error);
+                const errMsg = localizeError(rawErr, lang);
                 accumulated += `\n⚠️ ${errMsg}`;
                 setChatMessages([...newMsgs, { role: "assistant", content: accumulated }]);
-                if (errMsg.includes("429") || errMsg.includes("سقف مصرف")) {
-                  notifySystem("DuckBridge — سقف مصرف روزانه", "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید. لطفاً در تنظیمات پروکسی را تغییر دهید.");
-                } else if (errMsg.includes("418")) {
-                  notifySystem("DuckBridge — محدودیت امنیتی داک‌داک‌گو", "درخواست موقتاً توسط داک‌داک‌گو متوقف شد. چند دقیقه صبر کنید یا پروکسی را تغییر دهید.");
+                if (rawErr.includes("429") || rawErr.includes("سقف مصرف")) {
+                  notifySystem(t.quotaExceededTitle, t.quotaExceededBody);
+                } else if (rawErr.includes("418")) {
+                  notifySystem(t.botBlockedTitle, t.botBlockedBody);
                 }
               }
               const delta = chunk.choices?.[0]?.delta?.content || "";
@@ -542,9 +649,9 @@ export default function App() {
       }
     } catch (e: any) {
       if (e.name === "AbortError" || String(e.message).includes("aborted")) {
-        setChatMessages([...newMsgs, { role: "assistant", content: accumulated ? `${accumulated}\n\n[تولید پاسخ توسط کاربر متوقف شد]` : "تولید پاسخ متوقف شد." }]);
+        setChatMessages([...newMsgs, { role: "assistant", content: accumulated ? `${accumulated}\n\n${t.responseStoppedByUser}` : t.responseStopped }]);
       } else {
-        setChatMessages([...newMsgs, { role: "assistant", content: `خطای اتصال به سرور محلی: ${e.message}` }]);
+        setChatMessages([...newMsgs, { role: "assistant", content: `${t.serverConnectionError}: ${e.message}` }]);
       }
     } finally {
       abortCtrlRef.current = null;
@@ -566,7 +673,7 @@ export default function App() {
       });
       if (!resp.ok) {
         const err = await resp.text();
-        showToast(`خطا: ${err}`);
+        showToast(`${t.errorPrefix}: ${localizeError(err, lang)}`);
       } else {
         const json = await resp.json();
         const url = json.data?.[0]?.url;
@@ -575,7 +682,7 @@ export default function App() {
         }
       }
     } catch (e: any) {
-      showToast(`خطا: ${e.message}`);
+      showToast(`${t.errorPrefix}: ${e.message}`);
     } finally {
       setImgLoading(false);
     }
@@ -680,7 +787,7 @@ export default function App() {
           </span>
           <div>
             <div className="wordmark">DuckBridge</div>
-            <div className="sub">API Gateway</div>
+            <div className="sub">{t.subWordmark}</div>
           </div>
         </div>
 
@@ -729,7 +836,7 @@ export default function App() {
               </>
             )}
           </div>
-          <div className="sidefoot-meta">Duck.ai · local only</div>
+          <div className="sidefoot-meta">{t.sidefootLocalOnly}</div>
         </div>
       </aside>
 
@@ -737,11 +844,11 @@ export default function App() {
         <header className="topbar">
           <div>
             <h1>{t[tab] || "Overview"}</h1>
-            <p className="muted">{lang === "fa" ? "دروازه محلی و پرسرعت برای استفاده از Duck.ai در کلاینت‌های دلخواه" : "Local fast gateway to use Duck.ai in your favorite clients"}</p>
+            <p className="muted">{t.tagline}</p>
           </div>
           <div className="top-actions">
             <button className="btn ghost" onClick={() => copyText(v1Url, () => showToast(t.copiedUrl), t.copied)}>
-              {t.copy} Base URL
+              {t.copyBaseUrl}
             </button>
             <button className="btn" onClick={loadAll}>
               {t.refresh}
@@ -788,12 +895,12 @@ export default function App() {
                   </div>
                 </div>
                 {metrics?.last_error && (
-                  <div className="notice" style={{ borderColor: metrics.last_error.includes("۴۲۹") || metrics.last_error.includes("۴۱۸") ? "var(--bad)" : "var(--border)" }}>
+                  <div className="notice" style={{ borderColor: metrics.last_error.includes("429") || metrics.last_error.includes("418") || metrics.last_error.includes("۴۲۹") || metrics.last_error.includes("۴۱۸") ? "var(--bad)" : "var(--border)" }}>
                     <div className="row between" style={{ alignItems: "center", width: "100%" }}>
-                      <span><strong>وضعیت اتصال:</strong> {metrics.last_error}</span>
-                      {(metrics.last_error.includes("۴۲۹") || metrics.last_error.includes("۴۱۸") || metrics.last_error.includes("پروکسی")) && (
+                      <span><strong>{t.connectionStatus}:</strong> {localizeError(metrics.last_error, lang)}</span>
+                      {(metrics.last_error.includes("429") || metrics.last_error.includes("418") || metrics.last_error.includes("۴۲۹") || metrics.last_error.includes("۴۱۸") || metrics.last_error.toLowerCase().includes("proxy") || metrics.last_error.includes("پروکسی")) && (
                         <button className="btn sm primary" onClick={() => setTab("settings")}>
-                          تنظیمات پروکسی
+                          {t.proxySettings}
                         </button>
                       )}
                     </div>
@@ -809,7 +916,7 @@ export default function App() {
                     <h4>
                       <span>{t.chatboxTitle}</span>
                       <button className="btn sm" onClick={() => copyText(v1Url, () => showToast(t.copiedUrl), t.copied)}>
-                        {t.copy} URL
+                        {t.copyUrl}
                       </button>
                     </h4>
                     <p>{t.chatboxDesc}</p>
@@ -820,7 +927,7 @@ export default function App() {
                     <h4>
                       <span>{t.cursorTitle}</span>
                       <button className="btn sm" onClick={() => copyText(v1Url, () => showToast(t.copiedUrl), t.copied)}>
-                        {t.copy} URL
+                        {t.copyUrl}
                       </button>
                     </h4>
                     <p>{t.cursorDesc}</p>
@@ -872,7 +979,7 @@ export default function App() {
               {playSubTab === "chat" ? (
                 <div className="chat-container">
                   <div className="chat-messages">
-                    {chatMessages.map((m, idx) => (
+                    {displayMessages.map((m, idx) => (
                       <div key={idx} className={`chat-bubble ${m.role} ${m.role === "assistant" && !m.content && chatLoading ? "loading" : ""}`}>
                         {m.content || (chatLoading ? t.thinking : "")}
                       </div>
@@ -890,8 +997,8 @@ export default function App() {
                       disabled={chatLoading}
                     />
                     {chatLoading ? (
-                      <button className="btn sm" type="button" onClick={stopChatMessage} title={lang === "fa" ? "توقف تولید پاسخ" : "Stop response"}>
-                        {lang === "fa" ? "توقف" : "Stop"}
+                      <button className="btn sm" type="button" onClick={stopChatMessage} title={t.stopResponseTitle}>
+                        {t.stopResponse}
                       </button>
                     ) : (
                       <button className="btn primary" onClick={sendChatMessage} disabled={!chatInput.trim()}>
@@ -906,7 +1013,7 @@ export default function App() {
                   <div className="row">
                     <input
                       className="input"
-                      placeholder="e.g. A serene mountain lake at sunrise, watercolor style"
+                      placeholder={t.sampleImagePrompt}
                       value={imagePrompt}
                       onChange={(e) => setImagePrompt(e.target.value)}
                       onKeyDown={(e) => {
@@ -923,7 +1030,7 @@ export default function App() {
                     <div className="image-result">
                       <img src={generatedImg} alt="AI Generated" />
                       <a href={generatedImg} target="_blank" rel="noreferrer" className="btn sm">
-                        دانلود / مشاهده کامل
+                        {t.downloadFullImage}
                       </a>
                     </div>
                   )}
@@ -967,7 +1074,7 @@ export default function App() {
                           <span className="spacer" />
                           {lat !== undefined && (
                             <span className={`latency-badge ${lat < 0 ? "slow" : lat > 2000 ? "slow" : ""}`}>
-                              {lat < 0 ? "Error" : `${lat} ${t.ms}`}
+                              {lat < 0 ? t.errorPrefix : `${lat} ${t.ms}`}
                             </span>
                           )}
                           {m.free ? (
@@ -1120,14 +1227,14 @@ export default function App() {
               <div className="about-head">
                 <div className="about-name">
                   <h2>DuckBridge</h2>
-                  <p className="muted">{lang === "fa" ? "درگاه محلی API برای Duck.ai" : "Local API gateway for Duck.ai"}</p>
+                  <p className="muted">{t.aboutSubtitle}</p>
                 </div>
               </div>
               <div className="about-grid">
                 <div className="about-item">
-                  <span>{lang === "fa" ? "برنامه‌ریزی و توسعه" : "Programmed by"}</span>
+                  <span>{t.aboutAuthor}</span>
                   <strong dir="auto" className="about-name-ltr">
-                    {lang === "fa" ? "محمد صادق نوروزیان" : "Mohammad Sadegh Norouzian"}
+                    {t.authorName}
                   </strong>
                 </div>
                 <div className="about-item">
@@ -1141,14 +1248,12 @@ export default function App() {
                   <code dir="ltr">Tauri · React · FastAPI · Node.js</code>
                 </div>
                 <div className="about-item">
-                  <span>{lang === "fa" ? "نسخه" : "Version"}</span>
+                  <span>{t.version}</span>
                   <code dir="ltr">{__APP_VERSION__}</code>
                 </div>
               </div>
               <p className="muted bidi">
-                {lang === "fa"
-                  ? "اپ به‌عنوان «سایدکار و دروازه محلی API» ساخته شده است. سرور محلی روی 127.0.0.1:8765 اجرا می‌شود و یک API استاندارد و سازگار با OpenAI برای چت، لیست مدل‌ها و تولید تصویر فراهم می‌کند تا ابزارهایی مانند Chatbox، Cursor و Continue بتوانند رایگان از آن استفاده کنند."
-                  : "Built as an API-making sidecar. The local server runs on 127.0.0.1:8765 and serves an OpenAI-compatible API for other clients to use."}
+                {t.aboutDesc}
               </p>
             </section>
           )}

@@ -231,14 +231,14 @@ def format_duckai_error(e: Exception) -> tuple[str, str]:
     msg = str(e)
     status = getattr(e, "status", None)
     if status == 429 or "429" in msg or "ERR_RATE_LIMIT" in msg or "ERR_BN_LIMIT" in msg:
-        return "RATE_LIMIT", "سقف مصرف روزانه داک‌داک‌گو روی این آی‌پی به پایان رسید (خطای ۴۲۹). لطفاً در تنظیمات پروکسی را فعال یا تغییر دهید."
+        return "RATE_LIMIT", "Duck.ai daily rate limit reached for this IP (Error 429). Please configure or change proxy in settings."
     if status == 418 or "418" in msg or "ERR_CHALLENGE" in msg:
-        return "BOT_BLOCK", "سیستم امنیتی داک‌داک‌گو موقتاً درخواست را محدود کرد (خطای ۴۱۸). چند دقیقه صبر کنید یا پروکسی را تغییر دهید."
+        return "BOT_BLOCK", "Duck.ai bot protection triggered (Error 418). Please wait a few minutes or switch proxy."
     if "Cannot find module 'jsdom'" in msg or ("jsdom" in msg and "cannot find" in msg.lower()):
-        return "DEPENDENCY_ERROR", "ماژول jsdom برای Node.js نصب نیست. لطفاً در پوشه برنامه دستور npm install را اجرا کنید."
+        return "DEPENDENCY_ERROR", "Node.js module 'jsdom' is missing. Please run 'npm install' in the application directory."
     if "node" in msg.lower() and ("not found" in msg.lower() or "enoent" in msg.lower()):
-        return "DEPENDENCY_ERROR", "محیط اجرایی Node.js یافت نشد. برای حل چالش امنیتی Duck.ai نیاز به نصب Node.js نسخه ۱۸ یا بالاتر است."
-    return "UPSTREAM_ERROR", f"خطای داک‌داک‌گو: {msg[:250]}"
+        return "DEPENDENCY_ERROR", "Node.js executable was not found. Node.js 18+ is required to solve Duck.ai challenges."
+    return "UPSTREAM_ERROR", f"Duck.ai error: {msg[:250]}"
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -322,7 +322,7 @@ async def chat_completions(
                                 logger.warning("Stream idle timeout (45s silence); aborting duck.ai stream")
                                 stream_failed = True
                                 stop_event.set()
-                                err_msg = "پاسخ از داک‌داک‌گو پس از ۴۵ ثانیه دریافت نشد (تایم‌اوت عدم فعالیت)."
+                                err_msg = "Duck.ai upstream stream timed out after 45s of inactivity."
                                 with _metrics_lock:
                                     _metrics["total"] += 1
                                     _metrics["errors"] += 1
