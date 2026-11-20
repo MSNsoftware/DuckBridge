@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from dotenv import load_dotenv
 
-from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt, fetch_models, fetch_models_full, get_max_chars_for_model
+from duckai_backend import DuckAI, DuckAIError, SUPPORTED_MODELS, DEFAULT_MODEL, resolve_model, build_prompt, fetch_models, fetch_models_full, get_max_chars_for_model, _extract_text
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -232,7 +232,7 @@ async def chat_completions(
     model = (request.model or DEFAULT_MODEL).strip()
     if len(request.messages) > 50:
         raise HTTPException(status_code=400, detail="Too many messages (max 50)")
-    total_len = sum(len(m.content or "") for m in request.messages)
+    total_len = sum(len(_extract_text(m.content)) for m in request.messages)
     if total_len > 200000:
         raise HTTPException(status_code=400, detail="Request too large (max ~200KB content)")
     max_chars = get_max_chars_for_model(model)

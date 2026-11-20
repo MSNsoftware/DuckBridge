@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "./lib/ipc";
 
 declare const __APP_VERSION__: string;
@@ -239,7 +239,13 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [newProxy, setNewProxy] = useState("");
 
+  // Settings draft state to eliminate keystroke disk I/O and polling overwrites
+  const isEditingServerRef = useRef(false);
+  const [draftHost, setDraftHost] = useState("127.0.0.1");
+  const [draftPort, setDraftPort] = useState("8765");
+
   // Playground state
+  const abortCtrlRef = useRef<AbortController | null>(null);
   const [playSubTab, setPlaySubTab] = useState<"chat" | "image">("chat");
   const [selectedModel, setSelectedModel] = useState("gpt-6-luna");
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([
@@ -315,6 +321,10 @@ export default function App() {
       const s = await invoke<Settings>("get_settings").catch(() => null);
       if (s) {
         setSettings(s);
+        if (!isEditingServerRef.current) {
+          setDraftHost(s.host);
+          setDraftPort(s.port.toString());
+        }
         applyTheme(s.theme);
         applyLang((s.language as any) || "en");
       }
@@ -420,6 +430,26 @@ export default function App() {
     }
   }
 
+  async function commitServerSettings() {
+    isEditingServerRef.current = false;
+    const p = parseInt(draftPort, 10);
+    const validPort = !isNaN(p) && p > 0 && p <= 65535 ? p : settings.port;
+    const validHost = draftHost.trim() || settings.host;
+    setDraftPort(validPort.toString());
+    setDraftHost(validHost);
+    if (validHost !== settings.host || validPort !== settings.port) {
+      await save({ ...settings, host: validHost, port: validPort });
+    }
+  }
+
+  function stopChatMessage() {
+    if (abortCtrlRef.current) {
+      abortCtrlRef.current.abort();
+      abortCtrlRef.current = null;
+      setChatLoading(false);
+    }
+  }
+
   async function addProxy() {
     const url = newProxy.trim();
     if (!url) return;
@@ -439,10 +469,15 @@ export default function App() {
     setChatInput("");
     setChatLoading(true);
 
+    const controller = new AbortController();
+    abortCtrlRef.current = controller;
+    let accumulated = "";
+
     try {
       const resp = await fetch(`${v1Url}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           model: selectedModel,
           messages: newMsgs.map((m) => ({ role: m.role, content: m.content })),
@@ -472,7 +507,6 @@ export default function App() {
 
       const decoder = new TextDecoder("utf-8");
       let partial = "";
-      let accumulated = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -507,8 +541,13 @@ export default function App() {
         }
       }
     } catch (e: any) {
-      setChatMessages([...newMsgs, { role: "assistant", content: `خطای اتصال به سرور محلی: ${e.message}` }]);
+      if (e.name === "AbortError" || String(e.message).includes("aborted")) {
+        setChatMessages([...newMsgs, { role: "assistant", content: accumulated ? `${accumulated}\n\n[تولید پاسخ توسط کاربر متوقف شد]` : "تولید پاسخ متوقف شد." }]);
+      } else {
+        setChatMessages([...newMsgs, { role: "assistant", content: `خطای اتصال به سرور محلی: ${e.message}` }]);
+      }
     } finally {
+      abortCtrlRef.current = null;
       setChatLoading(false);
     }
   }
@@ -846,13 +885,19 @@ export default function App() {
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") sendChatMessage();
+                        if (e.key === "Enter" && !chatLoading) sendChatMessage();
                       }}
                       disabled={chatLoading}
                     />
-                    <button className="btn primary" onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}>
-                      {chatLoading ? t.thinking : t.send}
-                    </button>
+                    {chatLoading ? (
+                      <button className="btn sm" type="button" onClick={stopChatMessage} title={lang === "fa" ? "توقف تولید پاسخ" : "Stop response"}>
+                        {lang === "fa" ? "توقف" : "Stop"}
+                      </button>
+                    ) : (
+                      <button className="btn primary" onClick={sendChatMessage} disabled={!chatInput.trim()}>
+                        {t.send}
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -948,11 +993,26 @@ export default function App() {
                 <div className="fieldgrid">
                   <label className="field">
                     <span>{t.host}</span>
-                    <input className="input" value={settings.host} onChange={(e) => save({ ...settings, host: e.target.value })} />
+                    <input
+                      className="input"
+                      value={draftHost}
+                      onFocus={() => { isEditingServerRef.current = true; }}
+                      onChange={(e) => setDraftHost(e.target.value)}
+                      onBlur={commitServerSettings}
+                      onKeyDown={(e) => e.key === "Enter" && commitServerSettings()}
+                    />
                   </label>
                   <label className="field">
                     <span>{t.port}</span>
-                    <input className="input" type="number" value={settings.port} onChange={(e) => save({ ...settings, port: Number(e.target.value) })} />
+                    <input
+                      className="input"
+                      type="number"
+                      value={draftPort}
+                      onFocus={() => { isEditingServerRef.current = true; }}
+                      onChange={(e) => setDraftPort(e.target.value)}
+                      onBlur={commitServerSettings}
+                      onKeyDown={(e) => e.key === "Enter" && commitServerSettings()}
+                    />
                   </label>
                 </div>
                 <label className="check">

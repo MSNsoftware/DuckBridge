@@ -434,10 +434,22 @@ fn python_has_pip(python: &str) -> bool {
 }
 
 /// First free TCP port at or after `preferred` (scans preferred..preferred+20).
+/// Retries the preferred port for up to 1.2s to prevent port-hopping during Windows TIME_WAIT socket release.
 fn pick_free_port(host: &str, preferred: u16) -> Option<u16> {
     use std::net::TcpListener;
+    let pref_addr = format!("{}:{}", host, preferred);
+    if TcpListener::bind(&pref_addr).is_ok() {
+        return Some(preferred);
+    }
+    // Retry preferred port to handle Windows socket teardown latency on restart
+    for _ in 0..4 {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        if TcpListener::bind(&pref_addr).is_ok() {
+            return Some(preferred);
+        }
+    }
     let end = preferred.saturating_add(20).min(65535);
-    for port in preferred..=end {
+    for port in (preferred.saturating_add(1))..=end {
         let addr = format!("{}:{}", host, port);
         if TcpListener::bind(&addr).is_ok() {
             return Some(port);
